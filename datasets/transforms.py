@@ -53,6 +53,16 @@ class ToTensor(object):
                     data['tsdf_list_full'][i] = torch.Tensor(data['tsdf_list_full'][i])
         return data
 
+class SparseDepthSampling(object):
+    """Sample sparse depth from depth image"""
+
+    def __init__(self, sampling_rate):
+        self.sampling_rate = sampling_rate
+
+    def __call__(self, data):
+        indices = np.random.choice(2, size=data.shape, p=[1-self.sampling_rate, self.sampling_rate])
+        indices = torch.tensor(indices, dtype=torch.float)
+        data['depth'] = torch.where(indices == 0, 0, data['depth'])
 
 class IntrinsicsPoseToProjection(object):
     """ Convert intrinsics and extrinsics matrices to a single projection matrix"""
@@ -335,7 +345,7 @@ class RandomTransformSpace(object):
                 data['tsdf_list'].append(tsdf_vol)
                 data['occ_list'].append(occ_vol)
             data.pop('tsdf_list_full')
-            data.pop('depth')
+            #data.pop('depth')
         data.pop('epoch')
         return data
 
