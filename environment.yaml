@@ -13,8 +13,5 @@ dependencies:
   - ipython
   - tqdm
   - numba
-  - sparsehash  # dependency for torchsparse
+  #- sparsehash  # dependency for torchsparse
   - pip
-  - pip:
-    - -r file:requirements.txt
-    - git+https://github.com/mit-han-lab/torchsparse.git

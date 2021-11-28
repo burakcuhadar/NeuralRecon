@@ -69,6 +69,7 @@ if cfg.DISTRIBUTED:
         backend="nccl", init_method="env://"
     )
     synchronize()
+torch.cuda.set_device(args.local_rank)
 cfg.LOCAL_RANK = args.local_rank
 cfg.freeze()
 
@@ -153,7 +154,7 @@ if cfg.DISTRIBUTED:
         find_unused_parameters=True
     )
 else:
-    model = torch.nn.DataParallel(model, device_ids=[0])
+    model = torch.nn.DataParallel(model, device_ids=[cfg.LOCAL_RANK])
     model.cuda()
 optimizer = torch.optim.Adam(model.parameters(), lr=cfg.TRAIN.LR, betas=(0.9, 0.999), weight_decay=cfg.TRAIN.WD)
 
