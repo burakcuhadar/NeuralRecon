@@ -22,6 +22,10 @@ def args():
     parser = argparse.ArgumentParser(description='A PyTorch Implementation of NeuralRecon')
 
     # general
+    parser.add_argument('--use_sparse',
+                        dest='use_sparse',
+                        action='store_true')
+
     parser.add_argument('--cfg',
                         help='experiment configure file name',
                         required=True,
@@ -64,6 +68,8 @@ args = args()
 update_config(cfg, args)
 
 cfg.defrost()
+cfg.USE_SPARSE = args.use_sparse
+
 num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 print('number of gpus: {}'.format(num_gpus))
 cfg.DISTRIBUTED = num_gpus > 1
@@ -114,7 +120,7 @@ transform += [transforms.ResizeImage((640, 480)),
                   cfg.MODEL.N_VOX, cfg.MODEL.VOXEL_SIZE, random_rotation, random_translation,
                   paddingXY, paddingZ, max_epoch=cfg.TRAIN.EPOCHS),
               transforms.IntrinsicsPoseToProjection(n_views, 4),
-              transforms.SparseDepthSampling(0.1)
+              transforms.SparseDepthSampling(args.sparse_depth_rate)
               ]
 
 transforms = transforms.Compose(transform)

@@ -2,7 +2,7 @@ import torch
 from torch.nn.functional import grid_sample
 
 
-def back_project(coords, origin, voxel_size, feats, KRcam):
+def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, depth_im=None):
     '''
     Unproject the image fetures to form a 3D (sparse) feature volume
 
@@ -62,6 +62,11 @@ def back_project(coords, origin, voxel_size, feats, KRcam):
         im_z[mask == False] = 0
 
         count[batch_ind] = mask.sum(dim=0).float()
+
+        # Create the sparse depth features
+        if use_sparse:
+            #TODO implement this!
+            pass
 
         # aggregate multi view
         features = features.sum(dim=0)

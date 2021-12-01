@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchsparse.tensor import PointTensor
 from loguru import logger
+from PIL import Image
 
 from models.modules import SPVCNN
 from utils import apply_log_transform
@@ -126,8 +127,14 @@ class NeuConNet(nn.Module):
             # ----back project----
             feats = torch.stack([feat[scale] for feat in features])
             KRcam = inputs['proj_matrices'][:, :, scale].permute(1, 0, 2, 3).contiguous()
-            volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
-                                         KRcam)
+            if self.cfg.USE_SPARSE:
+                # TODO resize depth image using F.interpolate
+                volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
+                                             KRcam, self.cfg.USE_SPARSE, inputs['depth'])
+            else:
+                volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
+                                             KRcam)
+
             grid_mask = count > 1
 
             # ----concat feature from last stage----
