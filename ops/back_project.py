@@ -22,7 +22,10 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
     '''
     n_views, bs, c, h, w = feats.shape
 
-    feature_volume_all = torch.zeros(coords.shape[0], c + 1).cuda()
+    if use_sparse:
+        feature_volume_all = torch.zeros(coords.shape[0], c + 2).cuda()
+    else:
+        feature_volume_all = torch.zeros(coords.shape[0], c + 1).cuda()
     count = torch.zeros(coords.shape[0]).cuda()
 
     for batch in range(bs):
@@ -46,6 +49,36 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
         im_x = im_x / im_z
         im_y = im_y / im_z
 
+
+        # Find nearest depth value for each voxel
+        if use_sparse:
+            depth_batch = depth_im[:, batch] # (n views, h, w)
+            
+            # find the nearest depth value for every projected voxel
+            xx, yy = torch.meshgrid(torch.arange(h), torch.arange(w))
+            xx = xx.expand(n_views,-1,-1).flatten(start_dim=1) 
+            yy = yy.expand(n_views,-1,-1).flatten(start_dim=1)                   # (n views, h*w)
+            depth_mask = depth_batch.view(n_views,-1) > 0 
+            depth_coords = torch.stack([xx[depth_mask], yy[depth_mask]], dim=-1) # (num views, num of valid depths, 2)
+            depth_coords = depth_coords.expand(-1, nV, -1, -1)                   # (num views, num voxels, num of valid depths, 2)
+            im_coords = torch.stack([im_x, im_y], dim=-1)                        # (num views, num voxels,  2)
+            dist = im_coords - depth_coords                                      # (num views, num voxels, num depth, 2)
+            dist = dist.square().sum(dim=-1).sqrt()                              # (num views, num voxels, num depth)
+            nearest_idx = torch.argmin(dist, dim=-1)                             # (num views, num voxels)
+            # For each voxel in each view "nearest_dist" stores the distance to the nearest pixel that has valid depth
+            nearest_dist = dist[:,:,nearest_idx] # (num views, num voxels)
+            # Normalize nearest_dist into [0,1]
+            nearest_dist = nearest_dist / (h**2 + w**2)**0.5
+            # For each voxel in each view "nearest_depth" stores the depth of the nearest neighbor that has valid depth
+            depth_batch = depth_batch.expand(-1, nV, -1, -1).view(n_views, nV, -1) # (num views, num voxels, h*w)
+            nearest_x = depth_coords[:,:,nearest_idx,0]
+            nearest_y = depth_coords[:,:,nearest_idx,1]
+            nearest_depth = depth_batch[:, :, w * nearest_x + nearest_y]           # (num views, num voxels)
+
+            # create the additional feature dimension
+            sparse_depth_feature = torch.where(torch.abs(im_z - nearest_depth) < voxel_size, 1 - nearest_dist, 0.)
+            
+
         im_grid = torch.stack([2 * im_x / (w - 1) - 1, 2 * im_y / (h - 1) - 1], dim=-1)
         mask = im_grid.abs() <= 1
         mask = (mask.sum(dim=-1) == 2) & (im_z > 0)
@@ -61,13 +94,15 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
         features[mask.unsqueeze(1).expand(-1, c, -1) == False] = 0
         im_z[mask == False] = 0
 
+        if use_sparse:
+            sparse_depth_feature[mask == False] = 0
+            sparse_depth_feature = sparse_depth_feature.unsqueeze(1)
+            features = torch.cat([features, sparse_depth_feature], dim=1)
+            
+
         count[batch_ind] = mask.sum(dim=0).float()
 
-        # Create the sparse depth features
-        if use_sparse:
-            #TODO implement this!
-            pass
-
+            
         # aggregate multi view
         features = features.sum(dim=0)
         mask = mask.sum(dim=0)

@@ -18,7 +18,6 @@
 # limitations under the License.
 
 
-from math import dist
 from PIL import Image, ImageOps
 import numpy as np
 from utils import coordinates
