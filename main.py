@@ -68,7 +68,7 @@ args = args()
 update_config(cfg, args)
 
 cfg.defrost()
-cfg.USE_SPARSE = args.use_sparse
+cfg.MODEL.USE_SPARSE = args.use_sparse
 
 num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 print('number of gpus: {}'.format(num_gpus))
