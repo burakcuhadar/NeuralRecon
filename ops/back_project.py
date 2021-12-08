@@ -60,7 +60,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
             yy = yy.expand(n_views,-1,-1).flatten(start_dim=1)                   # (n views, h*w)
             depth_mask = depth_batch.view(n_views,-1) > 0 
             depth_coords = torch.stack([xx[depth_mask], yy[depth_mask]], dim=-1) # (num views, num of valid depths, 2)
-            depth_coords = depth_coords.expand(-1, nV, -1, -1)                   # (num views, num voxels, num of valid depths, 2)
+            depth_coords = depth_coords.unsqueeze(1).expand(n_views, nV, -1, -1)      # (num views, num voxels, num of valid depths, 2)
             im_coords = torch.stack([im_x, im_y], dim=-1)                        # (num views, num voxels,  2)
             dist = im_coords - depth_coords                                      # (num views, num voxels, num depth, 2)
             dist = dist.square().sum(dim=-1).sqrt()                              # (num views, num voxels, num depth)
