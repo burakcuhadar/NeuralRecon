@@ -25,6 +25,9 @@ def args():
     parser.add_argument('--use_sparse',
                         dest='use_sparse',
                         action='store_true')
+    parser.add_argument('--use_sparse_method1',
+                        dest='use_sparse_method1',
+                        action='store_true')
 
     parser.add_argument('--cfg',
                         help='experiment configure file name',
@@ -69,6 +72,7 @@ update_config(cfg, args)
 
 cfg.defrost()
 cfg.MODEL.USE_SPARSE = args.use_sparse
+cfg.MODEL.USE_SPARSE_METHOD1 = args.use_sparse_method1
 
 num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 print('number of gpus: {}'.format(num_gpus))
@@ -119,9 +123,10 @@ transform += [transforms.ResizeImage((640, 480)),
               transforms.RandomTransformSpace(
                   cfg.MODEL.N_VOX, cfg.MODEL.VOXEL_SIZE, random_rotation, random_translation,
                   paddingXY, paddingZ, max_epoch=cfg.TRAIN.EPOCHS),
-              transforms.IntrinsicsPoseToProjection(n_views, 4),
-              transforms.SparseDepthSampling(args.sparse_depth_rate)
+              transforms.IntrinsicsPoseToProjection(n_views, 4)
               ]
+if args.use_sparse:
+    transforms.SparseDepthSampling(args.sparse_depth_rate)
 
 transforms = transforms.Compose(transform)
 

@@ -63,60 +63,34 @@ class SparseDepthSampling(object):
         B = data['depth'].shape[0]
         H = data['depth'].shape[1]
         W = data['depth'].shape[2]
- 
+
         #data['depth_mask'] = torch.zeros((B,H,W))
+        #max_dist = np.sqrt(H*H+W*W)
 
         for batch_ind in range(B):
-            valid_depth_points = data['depth'][0] > 0
-    
+            #valid_depth_points = data['depth'][batch_ind] > 0
+
             # mask indicating locations where depth is sampled
-            mask = np.random.choice(2, size=(H,W), p=[1-self.sampling_rate, self.sampling_rate])
+            probs = torch.tensor([1-self.sampling_rate, self.sampling_rate])
+            mask = probs.multinomial(num_samples=H*W, replacement=True).reshape((H,W))
 
             # Make sure the sampling points have valid depth
-            dist_tuple = [(i, j) for i in range(H) for j in range(W) if valid_depth_points[i, j]]
+            '''xx,yy = torch.meshgrid(torch.arange(H, dtype=torch.float32), torch.arange(W, dtype=torch.float32))
+            coords = torch.stack([xx,yy], dim=-1).reshape(-1,2)
+
             for i in range(H):
                 for j in range(W):
                     if mask[i, j] == 1 and data['depth'][batch_ind][i, j] == 0:
-                        dist_transform = [np.sqrt(
-                            np.square(i-vec[0])+
-                            np.square(j-vec[1])) 
-                            for vec in dist_tuple if vec != [i, j]
-                        ]
-                        closest_pixel = np.argmin(dist_transform)
+                        dists = torch.cdist(torch.tensor([[i,j]], dtype=torch.float32), coords)[0].reshape(H,W)
+                        dists[i,j] = max_dist
+                        dists[valid_depth_points.logical_not()] = max_dist
+                        closest_arg = torch.argmin(dists)
+                        x, y = closest_arg // W, closest_arg % W
                         mask[i, j] = 0
-                        x, y = dist_tuple[closest_pixel]
-                        mask[x, y] = 1
-            
-            data['depth'][batch_ind] = data['depth'][batch_ind] * mask
-            #data['depth_mask'][batch_ind] = mask
+                        mask[x, y] = 1'''
 
-            '''
-            Sh = [i for i in range(H) for j in range(W) if mask[i, j]]
-            Sw = [j for i in range(H) for j in range(W) if mask[i, j]]
-            idx_to_depth = {}
-            for i, (x, y) in enumerate(zip(Sh, Sw)):
-                idx_to_depth[i] = x * W + y
+            data['depth'][batch_ind] = data['depth'][batch_ind] * mask 
 
-            Sh, Sw = np.array(Sh), np.array(Sw)
-            Hd, Wd = np.empty((H, W)), np.empty((H, W))
-            Hd.T[:, ] = np.arange(H)
-            Wd[:, ] = np.arange(W)
-            Hd, Wd = Hd[..., None], Wd[..., None]
-            Hd2 = np.square(Hd - Sh)
-            Wd2 = np.square(Wd - Sw)
-            dmap = np.sqrt(Hd2 + Wd2)
-            dmap_arg = np.argmin(dmap, axis=-1)
-            dmap_arg = dmap_arg.ravel()
-            dmap_arg = np.array([idx_to_depth[i] for i in dmap_arg])
-            dmap_arg = torch.from_numpy(dmap_arg)
-            nn_fill = data['depth'][batch_ind].ravel()[dmap_arg].reshape(H, W)[None]
-            dist_to_depth = np.sqrt(np.min(dmap, axis=-1))[None]
-            dist_to_depth = torch.from_numpy(dist_to_depth)
-            data['depth'][batch_ind] = nn_fill
-            data['dist_to_depth'][batch_ind] = dist_to_depth
-            '''
-
-            
         return data
 
 class IntrinsicsPoseToProjection(object):
