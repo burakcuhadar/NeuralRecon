@@ -25,6 +25,8 @@ class NeuConNet(nn.Module):
 
         alpha = int(self.cfg.BACKBONE2D.ARC.split('-')[-1])
         ch_in = [80 * alpha + 1, 96 + 40 * alpha + 2 + 1, 48 + 24 * alpha + 2 + 1, 24 + 24 + 2 + 1]
+        if self.cfg.USE_SPARSE:
+            ch_in = [80 * alpha + 1 +1, 96 + 40 * alpha + 2 + 1 +1, 48 + 24 * alpha + 2 + 1 +1, 24 + 24 + 2 + 1 +1]
         channels = [96, 48, 24]
 
         if self.cfg.FUSION.FUSION_ON:
@@ -128,14 +130,11 @@ class NeuConNet(nn.Module):
             feats = torch.stack([feat[scale] for feat in features])
             KRcam = inputs['proj_matrices'][:, :, scale].permute(1, 0, 2, 3).contiguous()
             if self.cfg.USE_SPARSE:
-                print(inputs['depth'].shape)
-                print(bs)
 		# resize depth image using F.interpolate
                 h, w = features[0][-1-i].shape[2], features[0][-1-i].shape[3]
                 views_depth = [F.interpolate(depth.unsqueeze(dim=1), size=(h, w), mode='nearest') for depth in torch.unbind(inputs['depth'], 1)]
-                inputs['depth'] = torch.stack(views_depth) 
                 volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
-                                             KRcam, self.cfg.USE_SPARSE, inputs['depth'])
+                                             KRcam, self.cfg.USE_SPARSE, torch.stack(views_depth))
             else:
                 volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
                                              KRcam)
