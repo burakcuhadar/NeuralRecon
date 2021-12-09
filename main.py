@@ -22,6 +22,10 @@ def args():
     parser = argparse.ArgumentParser(description='A PyTorch Implementation of NeuralRecon')
 
     # general
+    parser.add_argument('--use_sparse',
+                        dest='use_sparse',
+                        action='store_true')
+
     parser.add_argument('--cfg',
                         help='experiment configure file name',
                         required=True,
@@ -49,6 +53,11 @@ def args():
                         type=int,
                         help='node rank for distributed training')
 
+    parser.add_argument('--sparse_depth_rate',
+                        default=0.,
+                        type=float,
+                        help='rate at which depth information is sampled, between 0. and 1.')
+
     # parse arguments and check
     args = parser.parse_args()
 
@@ -59,6 +68,8 @@ args = args()
 update_config(cfg, args)
 
 cfg.defrost()
+cfg.MODEL.USE_SPARSE = args.use_sparse
+
 num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 print('number of gpus: {}'.format(num_gpus))
 cfg.DISTRIBUTED = num_gpus > 1
@@ -109,6 +120,7 @@ transform += [transforms.ResizeImage((640, 480)),
                   cfg.MODEL.N_VOX, cfg.MODEL.VOXEL_SIZE, random_rotation, random_translation,
                   paddingXY, paddingZ, max_epoch=cfg.TRAIN.EPOCHS),
               transforms.IntrinsicsPoseToProjection(n_views, 4),
+              transforms.SparseDepthSampling(args.sparse_depth_rate)
               ]
 
 transforms = transforms.Compose(transform)
@@ -170,8 +182,8 @@ def train():
             # use the latest checkpoint file
             loadckpt = os.path.join(cfg.LOGDIR, saved_models[-1])
             logger.info("resuming " + str(loadckpt))
-            map_location = {'cuda:%d' % 0: 'cuda:%d' % cfg.LOCAL_RANK}
-            state_dict = torch.load(loadckpt, map_location=map_location)
+            #map_location = {'cuda:%d' % 0: 'cuda:%d' % cfg.LOCAL_RANK}
+            state_dict = torch.load(loadckpt, map_location=lambda storage, loc: storage.cuda(cfg.LOCAL_RANK))
             model.load_state_dict(state_dict['model'], strict=False)
             optimizer.param_groups[0]['initial_lr'] = state_dict['optimizer']['param_groups'][0]['lr']
             optimizer.param_groups[0]['lr'] = state_dict['optimizer']['param_groups'][0]['lr']
@@ -179,8 +191,8 @@ def train():
     elif cfg.LOADCKPT != '':
         # load checkpoint file specified by args.loadckpt
         logger.info("loading model {}".format(cfg.LOADCKPT))
-        map_location = {'cuda:%d' % 0: 'cuda:%d' % cfg.LOCAL_RANK}
-        state_dict = torch.load(cfg.LOADCKPT, map_location=map_location)
+        #map_location = {'cuda:%d' % 0: 'cuda:%d' % cfg.LOCAL_RANK}
+        state_dict = torch.load(cfg.LOADCKPT, map_location=lambda storage, loc: storage.cuda(cfg.LOCAL_RANK))
         model.load_state_dict(state_dict['model'])
         optimizer.param_groups[0]['initial_lr'] = state_dict['optimizer']['param_groups'][0]['lr']
         optimizer.param_groups[0]['lr'] = state_dict['optimizer']['param_groups'][0]['lr']
