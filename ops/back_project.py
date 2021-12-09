@@ -2,7 +2,7 @@ import torch
 from torch.nn.functional import grid_sample
 import math
 
-def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, depth_im=None):
+def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=False, depth_im=None):
     '''
     Unproject the image fetures to form a 3D (sparse) feature volume
 
@@ -22,7 +22,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
     '''
     n_views, bs, c, h, w = feats.shape
 
-    if use_sparse:
+    if use_sparse_method1:
         feature_volume_all = torch.zeros(coords.shape[0], c + 2).cuda()
     else:
         feature_volume_all = torch.zeros(coords.shape[0], c + 1).cuda()
@@ -51,7 +51,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
 
 
         # Find nearest depth value for each voxel
-        if use_sparse:
+        if use_sparse_method1:
             sparse_depth_feature = torch.zeros(n_views,nV).cuda()
             for view in range(n_views):
                 depth = depth_im[view,batch] #(h,w)
@@ -100,7 +100,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse=False, dep
         features[mask.unsqueeze(1).expand(-1, c, -1) == False] = 0
         im_z[mask == False] = 0
 
-        if use_sparse:
+        if use_sparse_method1:
             sparse_depth_feature[mask == False] = 0
             sparse_depth_feature = sparse_depth_feature.unsqueeze(1)
             features = torch.cat([features, sparse_depth_feature], dim=1)
