@@ -304,19 +304,29 @@ class TSDFVolume:
 
             # Integrate depth
             if self.use_sparse_depth:
-                print("We use sparse depth")
+                probs = torch.tensor([1 - self.sampling_rate, self.sampling_rate])
+                mask = probs.multinomial(num_samples=im_h * im_w, replacement=True).reshape((im_h, im_w))
+                masked_depth = depth_im * mask
+                self._sparse_depth_vol_cpu = np.zeros(valid_vox_x * valid_vox_y * valid_vox_z).reshape((valid_vox_x, valid_vox_y, valid_vox_z))
+                for i in range(im_h):
+                    for j in range(im_w):
+                        if masked_depth[i][j] != 0:
+                            if masked_depth[i][j] < valid_vox_z:
+                                self._sparse_depth_vol_cpu[i][j][masked_depth[i][j]] = 1
+                            else:
+                                self._sparse_depth_vol_cpu[i][j][-1] = 1
 
     def get_volume(self):
         if self.gpu_mode:
             self.cuda.memcpy_dtoh(self._tsdf_vol_cpu, self._tsdf_vol_gpu)
             self.cuda.memcpy_dtoh(self._color_vol_cpu, self._color_vol_gpu)
             self.cuda.memcpy_dtoh(self._weight_vol_cpu, self._weight_vol_gpu)
-        return self._tsdf_vol_cpu, self._color_vol_cpu, self._weight_vol_cpu
+        return self._tsdf_vol_cpu, self._color_vol_cpu, self._weight_vol_cpu, self._sparse_depth_vol_cpu
 
     def get_point_cloud(self):
         """Extract a point cloud from the voxel volume.
         """
-        tsdf_vol, color_vol, weight_vol = self.get_volume()
+        tsdf_vol, color_vol, weight_vol, _ = self.get_volume()
 
         # Marching cubes
         verts = measure.marching_cubes_lewiner(tsdf_vol, level=0)[0]
@@ -337,7 +347,7 @@ class TSDFVolume:
     def get_mesh(self):
         """Compute a mesh from the voxel volume using marching cubes.
         """
-        tsdf_vol, color_vol, weight_vol = self.get_volume()
+        tsdf_vol, color_vol, weight_vol, _ = self.get_volume()
 
         verts, faces, norms, vals = measure.marching_cubes_lewiner(tsdf_vol, level=0)
         verts_ind = np.round(verts).astype(int)
