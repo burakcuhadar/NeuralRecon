@@ -34,10 +34,12 @@ def parse_args():
     parser.add_argument('--min_distance', default=0.1, type=float)
 
     # ray multi processes
-    parser.add_argument('--n_proc', type=int, default=16, help='#processes launched to process scenes.')
-    parser.add_argument('--n_gpu', type=int, default=2, help='#number of gpus')
+    parser.add_argument('--n_proc', type=int, default=1, help='#processes launched to process scenes.')
+    parser.add_argument('--n_gpu', type=int, default=1, help='#number of gpus')
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--loader_num_workers', type=int, default=8)
+
+    parser.add_argument('--use_sparse_depth', default=False, type=bool)
     return parser.parse_args()
 
 
@@ -45,7 +47,7 @@ args = parse_args()
 args.save_path = os.path.join(args.data_path, args.save_name)
 
 
-def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_list, save_mesh=False):
+def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_list, save_mesh=False, use_sparse_depth=False):
     # ======================================================================================================== #
     # (Optional) This is an example of how to compute the 3D bounds
     # in world coordinates of the convex hull of all camera view
@@ -76,7 +78,7 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
     print("Initializing voxel volume...")
     tsdf_vol_list = []
     for l in range(args.num_layers):
-        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin))
+        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth))
 
     # Loop through RGB-D images and fuse them together
     t0_elapse = time.time()
@@ -223,7 +225,7 @@ def process_with_single_worker(args, scannet_files):
             cam_pose_all.update({id: cam_pose})
             # color_all.update({id: color_image})
 
-        save_tsdf_full(args, scene, cam_intr, depth_all, cam_pose_all, color_all, save_mesh=False)
+        save_tsdf_full(args, scene, cam_intr, depth_all, cam_pose_all, color_all, save_mesh=False, use_sparse_depth=args.use_sparse_depth)
         save_fragment_pkl(args, scene, cam_intr, depth_all, cam_pose_all)
 
 

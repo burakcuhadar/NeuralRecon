@@ -11,7 +11,7 @@ class TSDFVolume:
     """Volumetric TSDF Fusion of RGB-D Images.
     """
 
-    def __init__(self, vol_bnds, voxel_size, use_gpu=True, margin=5):
+    def __init__(self, vol_bnds, voxel_size, use_gpu=True, margin=5,use_sparse_depth=False):
         """Constructor.
 
         Args:
@@ -19,6 +19,9 @@ class TSDFVolume:
             xyz bounds (min/max) in meters.
           voxel_size (float): The volume discretization in meters.
         """
+        # Sparse Depth
+        self.use_sparse_depth = use_sparse_depth
+
         # try:
         import pycuda.driver as cuda
         import pycuda.autoinit
@@ -298,6 +301,10 @@ class TSDFVolume:
             new_g = np.minimum(255., np.round((w_old * old_g + obs_weight * new_g) / w_new))
             new_r = np.minimum(255., np.round((w_old * old_r + obs_weight * new_r) / w_new))
             self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z] = new_b * self._color_const + new_g * 256 + new_r
+
+            # Integrate depth
+            if self.use_sparse_depth:
+                print("We use sparse depth")
 
     def get_volume(self):
         if self.gpu_mode:
