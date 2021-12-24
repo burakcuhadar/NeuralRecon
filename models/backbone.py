@@ -42,13 +42,14 @@ class MnasMulti(nn.Module):
         )
 
         self.conv1 = MNASNet.layers._modules['9']
-        self.conv2 = MNASNet.layers._modules['10']
+        #self.conv2 = MNASNet.layers._modules['10']
 
-        self.out1 = nn.Conv2d(depths[4], depths[4], 1, bias=False)
-        self.out_channels = [depths[4]]
+        #self.out1 = nn.Conv2d(depths[4], depths[4], 1, bias=False)
+        #self.out_channels = [depths[4]]
+        self.out_channels = []
 
-        final_chs = depths[4]
-        self.inner1 = nn.Conv2d(depths[3], final_chs, 1, bias=True)
+        final_chs = depths[3]
+        #self.inner1 = nn.Conv2d(depths[3], final_chs, 1, bias=True)
         self.inner2 = nn.Conv2d(depths[2], final_chs, 1, bias=True)
 
         self.out2 = nn.Conv2d(final_chs, depths[3], 3, padding=1, bias=False)
@@ -59,14 +60,15 @@ class MnasMulti(nn.Module):
     def forward(self, x):
         conv0 = self.conv0(x)
         conv1 = self.conv1(conv0)
-        conv2 = self.conv2(conv1)
+        #conv2 = self.conv2(conv1)
 
-        intra_feat = conv2
+        #intra_feat = conv2
         outputs = []
-        out = self.out1(intra_feat)
-        outputs.append(out)
+        #out = self.out1(intra_feat)
+        #outputs.append(out)
 
-        intra_feat = F.interpolate(intra_feat, scale_factor=2, mode="nearest") + self.inner1(conv1)
+        #intra_feat = F.interpolate(intra_feat, scale_factor=2, mode="nearest") + self.inner1(conv1)
+        intra_feat = conv1
         out = self.out2(intra_feat)
         outputs.append(out)
 

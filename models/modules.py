@@ -77,7 +77,8 @@ class SPVCNN(nn.Module):
         self.dropout = kwargs['dropout']
 
         cr = kwargs.get('cr', 1.0)
-        cs = [32, 64, 128, 96, 96]
+        #cs = [32, 64, 128, 96, 96]
+        cs = [32, 128, 96]
         cs = [int(cr * x) for x in cs]
 
         if 'pres' in kwargs and 'vres' in kwargs:
@@ -95,39 +96,39 @@ class SPVCNN(nn.Module):
             ResidualBlock(cs[1], cs[1], ks=3, stride=1, dilation=1),
         )
 
-        self.stage2 = nn.Sequential(
-            BasicConvolutionBlock(cs[1], cs[1], ks=2, stride=2, dilation=1),
-            ResidualBlock(cs[1], cs[2], ks=3, stride=1, dilation=1),
-            ResidualBlock(cs[2], cs[2], ks=3, stride=1, dilation=1),
-        )
+        #self.stage2 = nn.Sequential(
+        #    BasicConvolutionBlock(cs[1], cs[1], ks=2, stride=2, dilation=1),
+        #    ResidualBlock(cs[1], cs[2], ks=3, stride=1, dilation=1),
+        #    ResidualBlock(cs[2], cs[2], ks=3, stride=1, dilation=1),
+        #)
 
         self.up1 = nn.ModuleList([
-            BasicDeconvolutionBlock(cs[2], cs[3], ks=2, stride=2),
+            BasicDeconvolutionBlock(cs[1], cs[2], ks=2, stride=2),
             nn.Sequential(
-                ResidualBlock(cs[3] + cs[1], cs[3], ks=3, stride=1,
+                ResidualBlock(cs[2] + cs[0], cs[2], ks=3, stride=1,
                               dilation=1),
-                ResidualBlock(cs[3], cs[3], ks=3, stride=1, dilation=1),
+                ResidualBlock(cs[2], cs[2], ks=3, stride=1, dilation=1),
             )
         ])
 
-        self.up2 = nn.ModuleList([
-            BasicDeconvolutionBlock(cs[3], cs[4], ks=2, stride=2),
-            nn.Sequential(
-                ResidualBlock(cs[4] + cs[0], cs[4], ks=3, stride=1,
-                              dilation=1),
-                ResidualBlock(cs[4], cs[4], ks=3, stride=1, dilation=1),
-            )
-        ])
+        #self.up2 = nn.ModuleList([
+        #    BasicDeconvolutionBlock(cs[3], cs[4], ks=2, stride=2),
+        #    nn.Sequential(
+        #        ResidualBlock(cs[4] + cs[0], cs[4], ks=3, stride=1,
+        #                      dilation=1),
+        #        ResidualBlock(cs[4], cs[4], ks=3, stride=1, dilation=1),
+        #    )
+        #])
 
         self.point_transforms = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(cs[0], cs[2]),
-                nn.BatchNorm1d(cs[2]),
+                nn.Linear(cs[0], cs[1]),
+                nn.BatchNorm1d(cs[1]),
                 nn.ReLU(True),
             ),
             nn.Sequential(
-                nn.Linear(cs[2], cs[4]),
-                nn.BatchNorm1d(cs[4]),
+                nn.Linear(cs[1], cs[2]),
+                nn.BatchNorm1d(cs[2]),
                 nn.ReLU(True),
             )
         ])
@@ -153,21 +154,21 @@ class SPVCNN(nn.Module):
 
         x1 = point_to_voxel(x0, z0)
         x1 = self.stage1(x1)
-        x2 = self.stage2(x1)
-        z1 = voxel_to_point(x2, z0)
+        #x2 = self.stage2(x1)
+        z1 = voxel_to_point(x1, z0)
         z1.F = z1.F + self.point_transforms[0](z0.F)
 
-        y3 = point_to_voxel(x2, z1)
+        y2 = point_to_voxel(x1, z1)
         if self.dropout:
-            y3.F = self.dropout(y3.F)
-        y3 = self.up1[0](y3)
-        y3 = torchsparse.cat([y3, x1])
-        y3 = self.up1[1](y3)
+            y2.F = self.dropout(y2.F)
+        y2 = self.up1[0](y2)
+        y2 = torchsparse.cat([y2, x0])
+        y2 = self.up1[1](y2)
 
-        y4 = self.up2[0](y3)
-        y4 = torchsparse.cat([y4, x0])
-        y4 = self.up2[1](y4)
-        z3 = voxel_to_point(y4, z1)
+        #y4 = self.up2[0](y3)
+        #y4 = torchsparse.cat([y4, x0])
+        #y4 = self.up2[1](y4)
+        z3 = voxel_to_point(y2, z1)
         z3.F = z3.F + self.point_transforms[1](z1.F)
 
         return z3.F

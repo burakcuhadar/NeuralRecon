@@ -25,9 +25,13 @@ class NeuConNet(nn.Module):
 
         alpha = int(self.cfg.BACKBONE2D.ARC.split('-')[-1])
         ch_in = [80 * alpha + 1, 96 + 40 * alpha + 2 + 1, 48 + 24 * alpha + 2 + 1, 24 + 24 + 2 + 1]
+        if self.cfg.N_LAYER == 2:
+            ch_in = [40 * alpha + 1, 48 + 24 * alpha + 2 + 1]
         if self.cfg.USE_SPARSE_METHOD1:
-            ch_in = [80 * alpha + 1 +1, 96 + 40 * alpha + 2 + 1 +1, 48 + 24 * alpha + 2 + 1 +1, 24 + 24 + 2 + 1 +1]
+            ch_in = [ch + 1 for ch in ch_in]
         channels = [96, 48, 24]
+        if self.cfg.N_LAYER == 2:
+            channels = [48, 24]
 
         if self.cfg.FUSION.FUSION_ON:
             # GRU Fusion
@@ -41,7 +45,7 @@ class NeuConNet(nn.Module):
             self.sp_convs.append(
                 SPVCNN(num_classes=1, in_channels=ch_in[i],
                        pres=1,
-                       cr=1 / 2 ** i,
+                       cr=1 / 2 ** i if cfg.N_LAYER==3 else 1/2**(i+1),
                        vres=self.cfg.VOXEL_SIZE * 2 ** (self.n_scales - i),
                        dropout=self.cfg.SPARSEREG.DROPOUT)
             )

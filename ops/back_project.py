@@ -23,10 +23,10 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
     n_views, bs, c, h, w = feats.shape
 
     if use_sparse_method1:
-        feature_volume_all = torch.zeros(coords.shape[0], c + 2).cuda()
+        feature_volume_all = torch.zeros(coords.shape[0], c + 2, device=torch.device('cuda'))
     else:
-        feature_volume_all = torch.zeros(coords.shape[0], c + 1).cuda()
-    count = torch.zeros(coords.shape[0]).cuda()
+        feature_volume_all = torch.zeros(coords.shape[0], c + 1, device=torch.device('cuda'))
+    count = torch.zeros(coords.shape[0], device=torch.device('cuda'))
 
     for batch in range(bs):
         batch_ind = torch.nonzero(coords[:, 0] == batch).squeeze(1)
@@ -41,7 +41,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
         rs_grid = grid_batch.unsqueeze(0).expand(n_views, -1, -1)
         rs_grid = rs_grid.permute(0, 2, 1).contiguous()
         nV = rs_grid.shape[-1]
-        rs_grid = torch.cat([rs_grid, torch.ones([n_views, 1, nV]).cuda()], dim=1)
+        rs_grid = torch.cat([rs_grid, torch.ones([n_views, 1, nV], device=torch.device('cuda'))], dim=1)
 
         # Project grid
         im_p = proj_batch @ rs_grid
@@ -52,7 +52,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
 
         # Find nearest depth value for each voxel
         if use_sparse_method1:
-            sparse_depth_feature = torch.zeros(n_views,nV).cuda()
+            sparse_depth_feature = torch.zeros(n_views,nV, device=torch.device('cuda'))
             for view in range(n_views):
                 depth = depth_im[view,batch] #(h,w)
 
@@ -82,7 +82,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
                 #nearest_depth = depth[nearest_x, nearest_y]           #  (num voxels)
                 nearest_depth = depth.view(h*w)[depth_mask].unsqueeze(0).expand(nV,-1)[torch.arange(nV), nearest_idx]
                 # create the additional feature dimension
-                sparse_depth_feature[view] = torch.where(torch.abs(im_z[view] - nearest_depth) < voxel_size * math.sqrt(2.) / 2., 1 - nearest_dist, torch.zeros(nV).cuda())
+                sparse_depth_feature[view] = torch.where(torch.abs(im_z[view] - nearest_depth) < voxel_size * math.sqrt(2.) / 2., 1 - nearest_dist, torch.zeros(nV, device=torch.device('cuda')))
 
 
         im_grid = torch.stack([2 * im_x / (w - 1) - 1, 2 * im_y / (h - 1) - 1], dim=-1)

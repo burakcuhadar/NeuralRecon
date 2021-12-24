@@ -156,9 +156,9 @@ if cfg.DISTRIBUTED:
     )
 else:
     TrainImgLoader = DataLoader(train_dataset, cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.TRAIN.N_WORKERS,
-                                drop_last=True)
+                                drop_last=True, pin_memory=True)
     TestImgLoader = DataLoader(test_dataset, cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.TEST.N_WORKERS,
-                               drop_last=False)
+                               drop_last=False, pin_memory=True)
 
 # model, optimizer
 model = NeuralRecon(cfg)
