@@ -26,7 +26,7 @@ class TSDFVolume:
     """Volumetric TSDF Fusion of RGB-D Images.
     """
 
-    def __init__(self, vol_bnds, voxel_size, use_gpu=True, margin=5,use_sparse_depth=False):
+    def __init__(self, vol_bnds, voxel_size, use_gpu=True, margin=5,use_sparse_depth=False,sampling_rate=0.01):
         """Constructor.
 
         Args:
@@ -36,6 +36,7 @@ class TSDFVolume:
         """
         # Sparse Depth
         self.use_sparse_depth = use_sparse_depth
+        self.sampling_rate = sampling_rate
 
         # try:
         import pycuda.driver as cuda
