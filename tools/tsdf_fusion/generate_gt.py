@@ -117,7 +117,7 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
     for l in range(args.num_layers):
         tsdf_vol, color_vol, weight_vol, depth_vol = tsdf_vol_list[l].get_volume()
         np.savez_compressed(os.path.join(args.save_path, scene_path, 'full_tsdf_layer{}'.format(str(l))), tsdf_vol)
-        np.savez_compressed(os.path.join(args.save_path, scene_path, 'sparse_depth{}'.format(str(l))), tsdf_vol)
+        np.savez_compressed(os.path.join(args.save_path, scene_path, 'sparse_depth{}'.format(str(l))), sparse_depth = depth_vol)
 
     if save_mesh:
         for l in range(args.num_layers):
