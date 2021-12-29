@@ -37,6 +37,8 @@ class TSDFVolume:
         # Sparse Depth
         self.use_sparse_depth = use_sparse_depth
         self.sampling_rate = sampling_rate
+        print("use_sd?" + str(self.use_sparse_depth))
+        print("sd_rate = " +str(self.sampling_rate))
 
         # try:
         import pycuda.driver as cuda
@@ -72,6 +74,8 @@ class TSDFVolume:
         self._color_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self._sparse_depth_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self.gpu_mode = use_gpu and FUSION_GPU_MODE
+
+        print("use gpu ? " + str(self.gpu_mode))
 
         # Copy voxel volumes to GPU
         if self.gpu_mode:
@@ -319,15 +323,18 @@ class TSDFVolume:
             self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z] = new_b * self._color_const + new_g * 256 + new_r
 
             # Integrate depth
+            print("self.sparse_depth = " + self.use_sparse_depth)
             if self.use_sparse_depth:
+                print("Starting to integrate sparse depth")
                 probs = torch.tensor([1 - self.sampling_rate, self.sampling_rate])
                 mask = probs.multinomial(num_samples=im_h * im_w, replacement=True).reshape((im_h, im_w))
                 masked_depth = depth_im * mask
-                self._sparse_depth_vol_cpu = np.zeros(valid_vox_x * valid_vox_y * valid_vox_z).reshape((valid_vox_x, valid_vox_y, valid_vox_z))
+                # self._sparse_depth_vol_cpu = np.zeros(valid_vox_x * valid_vox_y * valid_vox_z).reshape((valid_vox_x, valid_vox_y, valid_vox_z))
                 for i in range(im_h):
                     for j in range(im_w):
                         if masked_depth[i][j] != 0:
                             k = masked_depth[i][j]
+                            print("Found a point to keep the depth")
                             # Set the real depth point
                             if masked_depth[i][j] < valid_vox_z:
                                 self._sparse_depth_vol_cpu[i][j][k] = 1
