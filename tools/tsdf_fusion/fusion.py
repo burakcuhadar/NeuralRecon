@@ -309,21 +309,23 @@ class TSDFVolume:
             self._tsdf_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z] = tsdf_vol_new
 
             # Integrate color
-            old_color = self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z]
-            old_b = np.floor(old_color / self._color_const)
-            old_g = np.floor((old_color - old_b * self._color_const) / 256)
-            old_r = old_color - old_b * self._color_const - old_g * 256
-            new_color = color_im[pix_y[valid_pts], pix_x[valid_pts]]
-            new_b = np.floor(new_color / self._color_const)
-            new_g = np.floor((new_color - new_b * self._color_const) / 256)
-            new_r = new_color - new_b * self._color_const - new_g * 256
-            new_b = np.minimum(255., np.round((w_old * old_b + obs_weight * new_b) / w_new))
-            new_g = np.minimum(255., np.round((w_old * old_g + obs_weight * new_g) / w_new))
-            new_r = np.minimum(255., np.round((w_old * old_r + obs_weight * new_r) / w_new))
-            self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z] = new_b * self._color_const + new_g * 256 + new_r
+            #old_color = self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z]
+            #old_b = np.floor(old_color / self._color_const)
+            #old_g = np.floor((old_color - old_b * self._color_const) / 256)
+            #old_r = old_color - old_b * self._color_const - old_g * 256
+            #print(type(color_im))
+            #print(color_im.shape)
+            #new_color = color_im[pix_y[valid_pts], pix_x[valid_pts]]
+            #new_b = np.floor(new_color / self._color_const)
+            #new_g = np.floor((new_color - new_b * self._color_const) / 256)
+            #new_r = new_color - new_b * self._color_const - new_g * 256
+            #new_b = np.minimum(255., np.round((w_old * old_b + obs_weight * new_b) / w_new))
+            #new_g = np.minimum(255., np.round((w_old * old_g + obs_weight * new_g) / w_new))
+            #new_r = np.minimum(255., np.round((w_old * old_r + obs_weight * new_r) / w_new))
+            #self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z] = new_b * self._color_const + new_g * 256 + new_r
 
             # Integrate depth
-            print("self.sparse_depth = " + self.use_sparse_depth)
+            #print("self.sparse_depth = " + self.use_sparse_depth)
             if self.use_sparse_depth:
                 print("Starting to integrate sparse depth")
                 probs = torch.tensor([1 - self.sampling_rate, self.sampling_rate])
