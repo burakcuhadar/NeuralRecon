@@ -1,13 +1,17 @@
 # Copyright (c) 2018 Andy Zeng
 
 import numpy as np
+import random
 
 from numba import njit, prange
 from skimage import measure
 import torch
 
-SPARSE_DEPTH_FIRST_LEVEL  = 0.64
-SPARSE_DEPTH_SECOND_LEVEL  = 0.32
+SPARSE_DEPTH_TRUNCATION_VALUES = {
+    "0":1,
+    "1":0.64,
+    "2":0.32,
+}
 
 
 def exists(array_shape, x,y,z):
@@ -21,6 +25,22 @@ def exists(array_shape, x,y,z):
         return False
     
     return True
+
+def hemming_distance(x_old,y_old,z_old,x_new,y_new,z_new):
+    distance_x = abs(x_old - x_new)
+    distance_y = abs(y_old - y_new)
+    distance_z = abs(z_old - z_new)
+    return distance_x + distance_y + distance_z
+
+def update_depth_volume(volume,pos_x,pos_y,pos_z,truncation_level):
+    if not exists(volume.shape,x,y,z):
+        return volume
+    depth_value = SPARSE_DEPTH_TRUNCATION_VALUES[truncation_level]
+    if depth_value is None:
+        depth_value = 0
+    volume[pos_x][pos_y][pos_z] = max(volume[pos_x][pos_y][pos_z], SPARSE_DEPTH_TRUNCATION_VALUES[truncation_level])
+    return volume
+
 
 class TSDFVolume:
     """Volumetric TSDF Fusion of RGB-D Images.
@@ -325,184 +345,28 @@ class TSDFVolume:
             #self._color_vol_cpu[valid_vox_x, valid_vox_y, valid_vox_z] = new_b * self._color_const + new_g * 256 + new_r
 
             # Integrate depth
-            #print("self.sparse_depth = " + self.use_sparse_depth)
             if self.use_sparse_depth:
                 print("Starting to integrate sparse depth")
-                probs = torch.tensor([1 - self.sampling_rate, self.sampling_rate])
-                mask = probs.multinomial(num_samples=im_h * im_w, replacement=True).reshape((im_h, im_w))
-                masked_depth = depth_im * mask
-                # self._sparse_depth_vol_cpu = np.zeros(valid_vox_x * valid_vox_y * valid_vox_z).reshape((valid_vox_x, valid_vox_y, valid_vox_z))
-                for i in range(im_h):
-                    for j in range(im_w):
-                        if masked_depth[i][j] != 0:
-                            k = masked_depth[i][j]
-                            print("Found a point to keep the depth")
-                            # Set the real depth point
-                            if masked_depth[i][j] < valid_vox_z:
-                                self._sparse_depth_vol_cpu[i][j][k] = 1
-                            else:
-                                self._sparse_depth_vol_cpu[i][j][-1] = 1
-                            # Surround with discounted values
+                size = valid_vox_x * valid_vox_y
+                number_of_points = int(size * self.sampling_rate)
+                print("Image size {}x{} therefore we selected {} points for the sparse depth".format(valid_vox_x,valid_vox_y,number_of_points))
 
-                                # First Level
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j, k):
-                                    self._sparse_depth_vol_cpu[i - 1][j][k] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j][k], SPARSE_DEPTH_FIRST_LEVEL)
+                for _ in range(number_of_points):
+                    pos_x = random.randint(0,valid_vox_x)
+                    pos_y = random.randint(0,valid_vox_y)
+                    pos_z = depth_im[pos_x][pos_y] 
+                    
+                    # Set the real depth point
+                    if pos_z > valid_vox_z:
+                        pos_z = valid_vox_z -1
+                    self._sparse_depth_vol_cpu[pos_x][pos_y][pos_z] = 1
 
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j, k):
-                                    self._sparse_depth_vol_cpu[i + 1][j][k] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j][k], SPARSE_DEPTH_FIRST_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j - 1, k):
-                                    self._sparse_depth_vol_cpu[i][j - 1][k] = max(
-                                        self._sparse_depth_vol_cpu[i][j - 1][k], SPARSE_DEPTH_FIRST_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j + 1, k):
-                                    self._sparse_depth_vol_cpu[i][j + 1][k] = max(
-                                        self._sparse_depth_vol_cpu[i][j + 1][k], SPARSE_DEPTH_FIRST_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j, k - 1):
-                                    self._sparse_depth_vol_cpu[i][j][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i][j][k - 1], SPARSE_DEPTH_FIRST_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j, k + 1):
-                                    self._sparse_depth_vol_cpu[i][j][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i][j][k + 1], SPARSE_DEPTH_FIRST_LEVEL)
-
-                                # Second Level
-                                # spikes
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 2, j, k):
-                                    self._sparse_depth_vol_cpu[i - 2][j][k] = max(
-                                        self._sparse_depth_vol_cpu[i - 2][j][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 2, j, k):
-                                    self._sparse_depth_vol_cpu[i + 2][j][k] = max(
-                                        self._sparse_depth_vol_cpu[i + 2][j][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j - 2, k):
-                                    self._sparse_depth_vol_cpu[i][j - 2][k] = max(
-                                        self._sparse_depth_vol_cpu[i][j - 2][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j + 2, k):
-                                    self._sparse_depth_vol_cpu[i][j + 2][k] = max(
-                                        self._sparse_depth_vol_cpu[i][j + 2][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j, k - 2):
-                                    self._sparse_depth_vol_cpu[i][j][k - 2] = max(
-                                        self._sparse_depth_vol_cpu[i][j][k - 2],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j, k + 2):
-                                    self._sparse_depth_vol_cpu[i][j][k + 2] = max(
-                                        self._sparse_depth_vol_cpu[i][j][k + 2],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                # Top ring
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j + 1, k):
-                                    self._sparse_depth_vol_cpu[i - 1][j + 1][k] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j + 1][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j - 1, k):
-                                    self._sparse_depth_vol_cpu[i - 1][j - 1][k] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j - 1][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j, k + 1):
-                                    self._sparse_depth_vol_cpu[i - 1][j][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j, k - 1):
-                                    self._sparse_depth_vol_cpu[i - 1][j][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-                                    
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j + 1, k + 1):
-                                    self._sparse_depth_vol_cpu[i - 1][j + 1][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j + 1][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-                                    
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j + 1, k - 1):
-                                    self._sparse_depth_vol_cpu[i - 1][j + 1][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j + 1][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j - 1, k + 1):
-                                    self._sparse_depth_vol_cpu[i - 1][j - 1][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j - 1][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i - 1, j - 1, k - 1):
-                                    self._sparse_depth_vol_cpu[i - 1][j - 1][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i - 1][j - 1][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-                                    
-                                # Bottom ring
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j + 1, k):
-                                    self._sparse_depth_vol_cpu[i + 1][j + 1][k] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j + 1][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j - 1, k):
-                                    self._sparse_depth_vol_cpu[i + 1][j - 1][k] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j - 1][k],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j, k + 1):
-                                    self._sparse_depth_vol_cpu[i + 1][j][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j, k - 1):
-                                    self._sparse_depth_vol_cpu[i + 1][j][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j + 1, k + 1):
-                                    self._sparse_depth_vol_cpu[i + 1][j + 1][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j + 1][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j + 1, k - 1):
-                                    self._sparse_depth_vol_cpu[i + 1][j + 1][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j + 1][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j - 1, k + 1):
-                                    self._sparse_depth_vol_cpu[i + 1][j - 1][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j - 1][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i + 1, j - 1, k - 1):
-                                    self._sparse_depth_vol_cpu[i + 1][j - 1][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i + 1][j - 1][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-                                    
-                                # Middle ring
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j + 1, k + 1):
-                                    self._sparse_depth_vol_cpu[i][j + 1][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i][j + 1][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j + 1, k - 1):
-                                    self._sparse_depth_vol_cpu[i][j + 1][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i][j + 1][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j - 1, k + 1):
-                                    self._sparse_depth_vol_cpu[i][j - 1][k + 1] = max(
-                                        self._sparse_depth_vol_cpu[i][j - 1][k + 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
-
-                                if exists(self._sparse_depth_vol_cpu.shape, i, j - 1, k - 1):
-                                    self._sparse_depth_vol_cpu[i][j - 1][k - 1] = max(
-                                        self._sparse_depth_vol_cpu[i][j - 1][k - 1],
-                                        SPARSE_DEPTH_SECOND_LEVEL)
+                    # Surround with discounted values
+                    for x in range(pos_x - 2,pos_x + 2):
+                        for y in range(pos_y - 2,pos_y + 2):
+                            for z in range(pos_z - 2,pos_z + 2):
+                                distance = hemming_distance(pos_x,pos_y,pos_z,x,y,z)
+                                self._sparse_depth_vol_cpu = update_depth_volume(self._sparse_depth_vol_cpu,x,y,z,str(distance))
                            
     def get_volume(self):
         if self.gpu_mode:
