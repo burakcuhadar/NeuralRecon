@@ -33,12 +33,12 @@ def hemming_distance(x_old,y_old,z_old,x_new,y_new,z_new):
     return distance_x + distance_y + distance_z
 
 def update_depth_volume(volume,pos_x,pos_y,pos_z,truncation_level):
-    if not exists(volume.shape,x,y,z):
+    if not exists(volume.shape,pos_x,pos_y,pos_z):
         return volume
-    depth_value = SPARSE_DEPTH_TRUNCATION_VALUES[truncation_level]
-    if depth_value is None:
-        depth_value = 0
-    volume[pos_x][pos_y][pos_z] = max(volume[pos_x][pos_y][pos_z], SPARSE_DEPTH_TRUNCATION_VALUES[truncation_level])
+    depth_value = 0
+    if truncation_level in SPARSE_DEPTH_TRUNCATION_VALUES:
+        depth_value = SPARSE_DEPTH_TRUNCATION_VALUES[truncation_level]
+    volume[pos_x][pos_y][pos_z] = max(volume[pos_x][pos_y][pos_z], depth_value)
     return volume
 
 
@@ -57,9 +57,7 @@ class TSDFVolume:
         # Sparse Depth
         self.use_sparse_depth = use_sparse_depth
         self.sampling_rate = sampling_rate
-        print("use_sd?" + str(self.use_sparse_depth))
-        print("sd_rate = " +str(self.sampling_rate))
-
+        
         # try:
         import pycuda.driver as cuda
         import pycuda.autoinit
@@ -347,18 +345,25 @@ class TSDFVolume:
             # Integrate depth
             if self.use_sparse_depth:
                 print("Starting to integrate sparse depth")
-                size = valid_vox_x * valid_vox_y
+                size = im_h * im_w
+                print("size value = " + str(size))
+
+                print("size "+ str(type(size)))
+                print("rate" + str(type(self.sampling_rate)))
                 number_of_points = int(size * self.sampling_rate)
-                print("Image size {}x{} therefore we selected {} points for the sparse depth".format(valid_vox_x,valid_vox_y,number_of_points))
+                print("Image size {}x{} therefore we selected {} points for the sparse depth".format(im_h, im_w,number_of_points))
 
                 for _ in range(number_of_points):
-                    pos_x = random.randint(0,valid_vox_x)
-                    pos_y = random.randint(0,valid_vox_y)
-                    pos_z = depth_im[pos_x][pos_y] 
-                    
+                    pos_x = random.randint(0,im_h - 1)
+                    pos_y = random.randint(0,im_w -1)
+                    pos_z = int(depth_im[pos_x][pos_y])
+                    # print(type(pos_x))
+                    # print(type(pos_y))
+                    # print(type(pos_z))
                     # Set the real depth point
-                    if pos_z > valid_vox_z:
-                        pos_z = valid_vox_z -1
+                    if not exists(self._sparse_depth_vol_cpu.shape,pos_x,pos_y,pos_z):
+                        continue
+
                     self._sparse_depth_vol_cpu[pos_x][pos_y][pos_z] = 1
 
                     # Surround with discounted values
