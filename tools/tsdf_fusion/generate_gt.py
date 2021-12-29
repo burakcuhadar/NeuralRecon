@@ -82,7 +82,7 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
     print("Initializing voxel volume...")
     tsdf_vol_list = []
     for l in range(args.num_layers):
-        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth,sampling_rate=sparse_depth_rate))
+        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth,sampling_rate=args.sparse_depth_rate))
 
     # Loop through RGB-D images and fuse them together
     t0_elapse = time.time()
@@ -115,8 +115,9 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
         pickle.dump(tsdf_info, f)
 
     for l in range(args.num_layers):
-        tsdf_vol, color_vol, weight_vol = tsdf_vol_list[l].get_volume()
+        tsdf_vol, color_vol, weight_vol, depth_vol = tsdf_vol_list[l].get_volume()
         np.savez_compressed(os.path.join(args.save_path, scene_path, 'full_tsdf_layer{}'.format(str(l))), tsdf_vol)
+        np.savez_compressed(os.path.join(args.save_path, scene_path, 'sparse_depth{}'.format(str(l))), tsdf_vol)
 
     if save_mesh:
         for l in range(args.num_layers):

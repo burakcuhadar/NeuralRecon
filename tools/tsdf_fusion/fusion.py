@@ -70,7 +70,7 @@ class TSDFVolume:
         # for computing the cumulative moving average of observations per voxel
         self._weight_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self._color_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
-
+        self._sparse_depth_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self.gpu_mode = use_gpu and FUSION_GPU_MODE
 
         # Copy voxel volumes to GPU
