@@ -40,6 +40,10 @@ def parse_args():
     parser.add_argument('--loader_num_workers', type=int, default=8)
 
     parser.add_argument('--use_sparse_depth', default=False, type=bool)
+    parser.add_argument('--sparse_depth_rate',
+                        default=0.,
+                        type=float,
+                        help='rate at which depth information is sampled, between 0. and 1.')
     return parser.parse_args()
 
 
@@ -78,7 +82,7 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
     print("Initializing voxel volume...")
     tsdf_vol_list = []
     for l in range(args.num_layers):
-        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth))
+        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth,sampling_rate=sparse_depth_rate))
 
     # Loop through RGB-D images and fuse them together
     t0_elapse = time.time()
