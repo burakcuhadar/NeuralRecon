@@ -41,6 +41,11 @@ def update_depth_volume(volume,pos_x,pos_y,pos_z,truncation_level):
     volume[pos_x][pos_y][pos_z] = max(volume[pos_x][pos_y][pos_z], depth_value)
     return volume
 
+def update_depth_volume_e(volume,pos_x,pos_y,pos_z,depth_value):
+    if not exists(volume.shape,pos_x,pos_y,pos_z):
+        return
+    volume[pos_x][pos_y][pos_z] = max(volume[pos_x][pos_y][pos_z], depth_value)
+
 
 class TSDFVolume:
     """Volumetric TSDF Fusion of RGB-D Images.
@@ -351,21 +356,54 @@ class TSDFVolume:
                     pos_x = random.randint(0,im_h - 1)
                     pos_y = random.randint(0,im_w -1)
                     pos_z = int(depth_im[pos_x][pos_y])
-                    # print(type(pos_x))
-                    # print(type(pos_y))
-                    # print(type(pos_z))
                     # Set the real depth point
                     if not exists(self._sparse_depth_vol_cpu.shape,pos_x,pos_y,pos_z):
                         continue
-
                     self._sparse_depth_vol_cpu[pos_x][pos_y][pos_z] = 1
 
                     # Surround with discounted values
-                    for x in range(pos_x - 2,pos_x + 2):
-                        for y in range(pos_y - 2,pos_y + 2):
-                            for z in range(pos_z - 2,pos_z + 2):
-                                distance = hemming_distance(pos_x,pos_y,pos_z,x,y,z)
-                                self._sparse_depth_vol_cpu = update_depth_volume(self._sparse_depth_vol_cpu,x,y,z,str(distance))
+                    # First Level
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y,pos_z,0.64)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y,pos_z,0.64)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y - 1,pos_z,0.64)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y + 1,pos_z,0.64)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y,pos_z - 1,0.64)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y,pos_z + 1,0.64)
+
+                    # Second Level
+                    # spikes
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 2,pos_y,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 2,pos_y,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y - 2,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y + 2,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y,pos_z - 2,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y,pos_z + 2,0.32)
+
+                    # top ring
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y - 1,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y + 1,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y,pos_z - 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y - 1,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y + 1,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y - 1,pos_z - 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x - 1,pos_y + 1,pos_z - 1,0.32)
+
+                    # bottom ring
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y - 1,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y + 1,pos_z,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y,pos_z - 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y - 1,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y + 1,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y - 1,pos_z - 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x + 1,pos_y + 1,pos_z - 1,0.32)
+
+                    # middle ring
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y - 1,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y + 1,pos_z + 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y - 1,pos_z - 1,0.32)
+                    update_depth_volume_e(self._sparse_depth_vol_cpu,pos_x,pos_y + 1,pos_z - 1,0.32)
                            
     def get_volume(self):
         if self.gpu_mode:
