@@ -93,8 +93,6 @@ class TSDFVolume:
         self._sparse_depth_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self.gpu_mode = use_gpu and FUSION_GPU_MODE
 
-        print("use gpu ? " + str(self.gpu_mode))
-
         # Copy voxel volumes to GPU
         if self.gpu_mode:
             self._tsdf_vol_gpu = cuda.mem_alloc(self._tsdf_vol_cpu.nbytes)
@@ -344,14 +342,10 @@ class TSDFVolume:
 
             # Integrate depth
             if self.use_sparse_depth:
-                print("Starting to integrate sparse depth")
+                # print("Starting to integrate sparse depth")
                 size = im_h * im_w
-                print("size value = " + str(size))
-
-                print("size "+ str(type(size)))
-                print("rate" + str(type(self.sampling_rate)))
                 number_of_points = int(size * self.sampling_rate)
-                print("Image size {}x{} therefore we selected {} points for the sparse depth".format(im_h, im_w,number_of_points))
+                # print("Image size {}x{} therefore we selected {} points for the sparse depth".format(im_h, im_w,number_of_points))
 
                 for _ in range(number_of_points):
                     pos_x = random.randint(0,im_h - 1)
