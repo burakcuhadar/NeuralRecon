@@ -111,9 +111,6 @@ class TSDFVolume:
 
             # Cuda kernel function (C++)
             self._cuda_src_mod = SourceModule("""   
-         #include <cstdlib>
-         #include<curand.h>
-         #include<curand_kernel.h>
          __global__ void integrate(float * tsdf_vol,
                                   float * weight_vol,
                                   float * color_vol,
@@ -192,14 +189,13 @@ class TSDFVolume:
 
           // Integrate Depth
           if (other_params[6]){
-            int size = im_h * im_w;
-            int number_of_points = (int)(size * other_params[7]);
-            for(int i = 0; i < number_of_points; i++){
-              curandState * state = 0;
-              int id = threadIdx.x;
-              curand_init(42,id,0, &state[id]);
-              int pos_x = ((int)curand_uniform(&state))%im_w;
-              //int pos_y = rand()%im_h;
+            int ** random_positions = other_params[7]);
+            int len = sizeof(random_positions) / sizeof(random_positions[0]);
+            for(int i = 0; i < len; i++){
+              
+              int pos_x = random_positions[i][0]
+              int pos_y = random_positions[i][1]
+              
               //int pos_z = (int)(depth_im[pos_x][pos_y]);
               //for (int x = pos_x -2 ; x >= pos_x +2;x++){
               //    for (int y = pos_y -2 ; y >= pos_y +2;y++){
@@ -315,7 +311,14 @@ class TSDFVolume:
             color_im = np.array(0)
 
         if self.gpu_mode:  # GPU mode: integrate voxel volume (calls CUDA kernel)
-	    
+            size = im_h * im_w
+            number_of_points = int(size * self.sampling_rate)
+            random_positions = []
+            for _ in range(number_of_points):
+                pos_x = random.randint(0,im_h - 1)
+                pos_y = random.randint(0,im_w -1)
+                random_positions.append([pos_x,pos_y])
+            
             for gpu_loop_idx in range(self._n_gpu_loops):
                 self._cuda_integrate(self._tsdf_vol_gpu,
                                      self._weight_vol_gpu,
@@ -333,7 +336,7 @@ class TSDFVolume:
                                          self._trunc_margin,
                                          obs_weight,
                                          self.use_sparse_depth,
-                                         self.sampling_rate
+                                         random_positions
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
