@@ -111,7 +111,10 @@ class TSDFVolume:
 
             # Cuda kernel function (C++)
             self._cuda_src_mod = SourceModule("""   
-        __global__ void integrate(float * tsdf_vol,
+         #include <cstdlib>
+         #include<curand.h>
+         #include<curand_kernel.h>
+         __global__ void integrate(float * tsdf_vol,
                                   float * weight_vol,
                                   float * color_vol,
                                   float * sparse_depth_vol,
@@ -189,33 +192,36 @@ class TSDFVolume:
 
           // Integrate Depth
           if (other_params[6]){
-            int size = im_h * im_w
-            int number_of_points = (int)(size * other_params[7])
+            int size = im_h * im_w;
+            int number_of_points = (int)(size * other_params[7]);
             for(int i = 0; i < number_of_points; i++){
-              int pos_x = rand()%im_w;
-              int pos_y = rand()%im_h;
-              int pos_z = (int)(depth_im[pos_x][pos_y])
-              for (int x = pos_x -2 ; x >= pos_x +2;x++){
-                  for (int y = pos_y -2 ; y >= pos_y +2;y++){
-                    for (int z = pos_z -2 ; z >= pos_z +2;z++){
-                        if( x < 0 || x > im_w || y < 0 || y > im_h){
-                            continue;
-                        }
-                        int distance = abs(pos_x - x) + abs(pos_y - y) + abs(pos_z - z)
-                        switch(distance){
-                            case 0:
-                                sparse_depth_vol[voxel_idx][x][y][z] = 1
-                                break;
-                            case 1:
-                                sparse_depth_vol[voxel_idx][x][y][z] = 0.64
-                                break;
-                            case 2:
-                                sparse_depth_vol[voxel_idx][x][y][z] = 0.32
-                                break;
-                        }
-                    }
-                  }
-              }
+              curandState * state = 0;
+              int id = threadIdx.x;
+              curand_init(42,id,0, &state[id]);
+              int pos_x = ((int)curand_uniform(&state))%im_w;
+              //int pos_y = rand()%im_h;
+              //int pos_z = (int)(depth_im[pos_x][pos_y]);
+              //for (int x = pos_x -2 ; x >= pos_x +2;x++){
+              //    for (int y = pos_y -2 ; y >= pos_y +2;y++){
+              //      for (int z = pos_z -2 ; z >= pos_z +2;z++){
+              //          if( x < 0 || x > im_w || y < 0 || y > im_h){
+              //              continue;
+              //          }
+              //          int distance = abs(pos_x - x) + abs(pos_y - y) + abs(pos_z - z);
+              //          switch(distance){
+              //              case 0:
+              //                  sparse_depth_vol[voxel_idx][x][y][z] = 1;
+              //                  break;
+              //              case 1:
+              //                  sparse_depth_vol[voxel_idx][x][y][z] = 0.64;
+              //                  break;
+              //              case 2:
+              //                  sparse_depth_vol[voxel_idx][x][y][z] = 0.32;
+              //                  break;
+              //          }
+              //      }
+              //    }
+              //}
             }
           }
           
@@ -309,6 +315,7 @@ class TSDFVolume:
             color_im = np.array(0)
 
         if self.gpu_mode:  # GPU mode: integrate voxel volume (calls CUDA kernel)
+	    
             for gpu_loop_idx in range(self._n_gpu_loops):
                 self._cuda_integrate(self._tsdf_vol_gpu,
                                      self._weight_vol_gpu,
