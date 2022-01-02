@@ -189,13 +189,13 @@ class TSDFVolume:
 
           // Integrate Depth
           if (other_params[6]){
-            int ** random_positions = other_params[7]);
-            int len = sizeof(random_positions) / sizeof(random_positions[0]);
-            for(int i = 0; i < len; i++){
-              
-              int pos_x = random_positions[i][0]
-              int pos_y = random_positions[i][1]
-              
+            int numberOfPoints = (int) other_params[8];
+            //int randomPositions [][2] = dynamic_cast<int [numberOfPoints][2]>(other_params[7]);
+
+            for(int i = 0; i < numberOfPoints; i++){
+              int pos_x = (int)(&other_params[7])[i][0];
+              int pos_y = (int)other_params[7][i][1];
+
               //int pos_z = (int)(depth_im[pos_x][pos_y]);
               //for (int x = pos_x -2 ; x >= pos_x +2;x++){
               //    for (int y = pos_y -2 ; y >= pos_y +2;y++){
@@ -336,7 +336,8 @@ class TSDFVolume:
                                          self._trunc_margin,
                                          obs_weight,
                                          self.use_sparse_depth,
-                                         random_positions
+                                         random_positions,
+                                         number_of_points
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
