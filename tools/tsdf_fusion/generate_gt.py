@@ -84,7 +84,7 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
     # print("args.sparse_depth_rate = " + str(args.sparse_depth_rate))
     tsdf_vol_list = []
     for l in range(args.num_layers):
-        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth,sampling_rate=args.sparse_depth_rate,use_gpu=False))
+        tsdf_vol_list.append(TSDFVolume(vol_bnds, voxel_size=args.voxel_size * 2 ** l, margin=args.margin,use_sparse_depth=use_sparse_depth,sampling_rate=args.sparse_depth_rate))
 
     # Loop through RGB-D images and fuse them together
     t0_elapse = time.time()

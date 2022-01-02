@@ -106,12 +106,15 @@ class TSDFVolume:
             self.cuda.memcpy_htod(self._weight_vol_gpu, self._weight_vol_cpu)
             self._color_vol_gpu = cuda.mem_alloc(self._color_vol_cpu.nbytes)
             self.cuda.memcpy_htod(self._color_vol_gpu, self._color_vol_cpu)
+            self._sparse_depth_vol_gpu = cuda.mem_alloc(self._sparse_depth_vol_cpu.nbytes)
+            self.cuda.memcpy_htod(self._sparse_depth_vol_gpu, self._sparse_depth_vol_cpu)
 
             # Cuda kernel function (C++)
-            self._cuda_src_mod = SourceModule("""
+            self._cuda_src_mod = SourceModule("""   
         __global__ void integrate(float * tsdf_vol,
                                   float * weight_vol,
                                   float * color_vol,
+                                  float * sparse_depth_vol,
                                   float * vol_dim,
                                   float * vol_origin,
                                   float * cam_intr,
@@ -170,19 +173,52 @@ class TSDFVolume:
           tsdf_vol[voxel_idx] = (tsdf_vol[voxel_idx]*w_old+obs_weight*dist)/w_new;
           
           // Integrate color
-          return;
-          float old_color = color_vol[voxel_idx];
-          float old_b = floorf(old_color/(256*256));
-          float old_g = floorf((old_color-old_b*256*256)/256);
-          float old_r = old_color-old_b*256*256-old_g*256;
-          float new_color = color_im[pixel_y*im_w+pixel_x];
-          float new_b = floorf(new_color/(256*256));
-          float new_g = floorf((new_color-new_b*256*256)/256);
-          float new_r = new_color-new_b*256*256-new_g*256;
-          new_b = fmin(roundf((old_b*w_old+obs_weight*new_b)/w_new),255.0f);
-          new_g = fmin(roundf((old_g*w_old+obs_weight*new_g)/w_new),255.0f);
-          new_r = fmin(roundf((old_r*w_old+obs_weight*new_r)/w_new),255.0f);
-          color_vol[voxel_idx] = new_b*256*256+new_g*256+new_r;
+          //return;
+          //float old_color = color_vol[voxel_idx];
+          //float old_b = floorf(old_color/(256*256));
+          //float old_g = floorf((old_color-old_b*256*256)/256);
+          //float old_r = old_color-old_b*256*256-old_g*256;
+          //float new_color = color_im[pixel_y*im_w+pixel_x];
+          //float new_b = floorf(new_color/(256*256));
+          //float new_g = floorf((new_color-new_b*256*256)/256);
+          //float new_r = new_color-new_b*256*256-new_g*256;
+          //new_b = fmin(roundf((old_b*w_old+obs_weight*new_b)/w_new),255.0f);
+          //new_g = fmin(roundf((old_g*w_old+obs_weight*new_g)/w_new),255.0f);
+          //new_r = fmin(roundf((old_r*w_old+obs_weight*new_r)/w_new),255.0f);
+          //color_vol[voxel_idx] = new_b*256*256+new_g*256+new_r;
+
+          // Integrate Depth
+          if (other_params[6]){
+            int size = im_h * im_w
+            int number_of_points = (int)(size * other_params[7])
+            for(int i = 0; i < number_of_points; i++){
+              int pos_x = rand()%im_w;
+              int pos_y = rand()%im_h;
+              int pos_z = (int)(depth_im[pos_x][pos_y])
+              for (int x = pos_x -2 ; x >= pos_x +2;x++){
+                  for (int y = pos_y -2 ; y >= pos_y +2;y++){
+                    for (int z = pos_z -2 ; z >= pos_z +2;z++){
+                        if( x < 0 || x > im_w || y < 0 || y > im_h){
+                            continue;
+                        }
+                        int distance = abs(pos_x - x) + abs(pos_y - y) + abs(pos_z - z)
+                        switch(distance){
+                            case 0:
+                                sparse_depth_vol[voxel_idx][x][y][z] = 1
+                                break;
+                            case 1:
+                                sparse_depth_vol[voxel_idx][x][y][z] = 0.64
+                                break;
+                            case 2:
+                                sparse_depth_vol[voxel_idx][x][y][z] = 0.32
+                                break;
+                        }
+                    }
+                  }
+              }
+            }
+          }
+          
         }""")
 
             self._cuda_integrate = self._cuda_src_mod.get_function("integrate")
@@ -277,6 +313,7 @@ class TSDFVolume:
                 self._cuda_integrate(self._tsdf_vol_gpu,
                                      self._weight_vol_gpu,
                                      self._color_vol_gpu,
+                                     self._sparse_depth_vol_gpu,
                                      self.cuda.InOut(self._vol_dim.astype(np.float32)),
                                      self.cuda.InOut(self._vol_origin.astype(np.float32)),
                                      self.cuda.InOut(cam_intr.reshape(-1).astype(np.float32)),
@@ -287,7 +324,9 @@ class TSDFVolume:
                                          im_h,
                                          im_w,
                                          self._trunc_margin,
-                                         obs_weight
+                                         obs_weight,
+                                         self.use_sparse_depth,
+                                         self.sampling_rate
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
