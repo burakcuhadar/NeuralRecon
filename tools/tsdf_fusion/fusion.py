@@ -121,7 +121,9 @@ class TSDFVolume:
                                   float * cam_pose,
                                   float * other_params,
                                   float * color_im,
-                                  float * depth_im) {
+                                  float * depth_im,
+                                  int * randomPositionsX,
+                                  int * randomPositionsY) {
           // Get voxel index
           int gpu_loop_idx = (int) other_params[0];
           int max_threads_per_block = blockDim.x;
@@ -189,12 +191,11 @@ class TSDFVolume:
 
           // Integrate Depth
           if (other_params[6]){
-            int ** random_positions = other_params[7]);
-            int len = sizeof(random_positions) / sizeof(random_positions[0]);
-            for(int i = 0; i < len; i++){
-              
-              int pos_x = random_positions[i][0]
-              int pos_y = random_positions[i][1]
+            int numberOfPoints = (int) other_params[7];
+            
+            for(int i = 0; i < numberOfPoints; i++){
+              int pos_x = randomPostionsX[i];
+              int pos_y = randomPostionsY[i];
               
               //int pos_z = (int)(depth_im[pos_x][pos_y]);
               //for (int x = pos_x -2 ; x >= pos_x +2;x++){
@@ -338,7 +339,8 @@ class TSDFVolume:
                                          im_w,
                                          self._trunc_margin,
                                          obs_weight,
-                                         self.use_sparse_depth
+                                         self.use_sparse_depth,
+                                         number_of_points
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
