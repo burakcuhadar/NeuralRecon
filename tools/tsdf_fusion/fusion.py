@@ -313,11 +313,14 @@ class TSDFVolume:
         if self.gpu_mode:  # GPU mode: integrate voxel volume (calls CUDA kernel)
             size = im_h * im_w
             number_of_points = int(size * self.sampling_rate)
-            random_positions = []
-            for _ in range(number_of_points):
-                pos_x = random.randint(0,im_h - 1)
+            random_positions_x = np.zeros(number_of_points)
+            random_positions_y = np.zeros(number_of_points)
+            for i in range(number_of_points):
+                pos_x = random.randint(0,im_h - 1) 
+                random_positions_x[i] = pos_x
                 pos_y = random.randint(0,im_w -1)
-                random_positions.append([pos_x,pos_y])
+                random_positions_y[i] = pos_y
+               
             
             for gpu_loop_idx in range(self._n_gpu_loops):
                 self._cuda_integrate(self._tsdf_vol_gpu,
@@ -335,11 +338,12 @@ class TSDFVolume:
                                          im_w,
                                          self._trunc_margin,
                                          obs_weight,
-                                         self.use_sparse_depth,
-                                         random_positions
+                                         self.use_sparse_depth
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
+                                     self.cuda.InOut(random_positions_x),
+                                     self.cuda.InOut(random_positions_y),
                                      block=(self._max_gpu_threads_per_block, 1, 1),
                                      grid=(
                                          int(self._max_gpu_grid_dim[0]),
