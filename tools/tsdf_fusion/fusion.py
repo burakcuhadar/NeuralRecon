@@ -194,31 +194,31 @@ class TSDFVolume:
             int numberOfPoints = (int) other_params[7];
             
             for(int i = 0; i < numberOfPoints; i++){
-              int pos_x = randomPostionsX[i];
-              int pos_y = randomPostionsY[i];
+              int pos_x = randomPositionsX[i];
+              int pos_y = randomPositionsY[i];
               
-              //int pos_z = (int)(depth_im[pos_x][pos_y]);
-              //for (int x = pos_x -2 ; x >= pos_x +2;x++){
-              //    for (int y = pos_y -2 ; y >= pos_y +2;y++){
-              //      for (int z = pos_z -2 ; z >= pos_z +2;z++){
-              //          if( x < 0 || x > im_w || y < 0 || y > im_h){
-              //              continue;
-              //          }
-              //          int distance = abs(pos_x - x) + abs(pos_y - y) + abs(pos_z - z);
-              //          switch(distance){
-              //              case 0:
-              //                  sparse_depth_vol[voxel_idx][x][y][z] = 1;
-              //                  break;
-              //              case 1:
-              //                  sparse_depth_vol[voxel_idx][x][y][z] = 0.64;
-              //                  break;
-              //              case 2:
-              //                  sparse_depth_vol[voxel_idx][x][y][z] = 0.32;
-              //                  break;
-              //          }
-              //      }
-              //    }
-              //}
+              int pos_z = (int)(depth_im[pos_y * im_w + pos_x]);
+              for (int x = pos_x -2 ; x >= pos_x +2;x++){
+                  for (int y = pos_y -2 ; y >= pos_y +2;y++){
+                    for (int z = pos_z -2 ; z >= pos_z +2;z++){
+                        if( x < 0 || x > im_w || y < 0 || y > im_h){
+                            continue;
+                        }
+                        int distance = abs(pos_x - x) + abs(pos_y - y) + abs(pos_z - z);
+                        switch(distance){
+                            case 0:
+                                sparse_depth_vol[x + im_w * (y + im_h * z)] = 1;
+                                break;
+                            case 1:
+                                sparse_depth_vol[x + im_w * (y + im_h * z)] = 0.64;
+                                break;
+                            case 2:
+                                sparse_depth_vol[x + im_w * (y + im_h * z)] = 0.32;
+                                break;
+                        }
+                    }
+                 }
+              }
             }
           }
           
@@ -302,7 +302,7 @@ class TSDFVolume:
             value
         """
         im_h, im_w = depth_im.shape
-
+        #print("Image shape {}x{} and the shape of the sparse_depth_vol is {}".format(im_h,im_w,self._sparse_depth_vol_cpu.shape))
         if color_im is not None:
             # Fold RGB color image into a single channel image
             color_im = color_im.astype(np.float32)
