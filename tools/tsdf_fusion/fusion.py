@@ -196,29 +196,15 @@ class TSDFVolume:
             for(int i = 0; i < numberOfPoints; i++){
               int pos_x = randomPositionsX[i];
               int pos_y = randomPositionsY[i];
-              
-              int pos_z = (int)(depth_im[pos_y * im_w + pos_x]);
-              for (int x = pos_x -2 ; x >= pos_x +2;x++){
-                  for (int y = pos_y -2 ; y >= pos_y +2;y++){
-                    for (int z = pos_z -2 ; z >= pos_z +2;z++){
-                        if( x < 0 || x > im_w || y < 0 || y > im_h){
-                            continue;
-                        }
-                        int distance = abs(pos_x - x) + abs(pos_y - y) + abs(pos_z - z);
-                        switch(distance){
-                            case 0:
-                                sparse_depth_vol[x + im_w * (y + im_h * z)] = 1;
-                                break;
-                            case 1:
-                                sparse_depth_vol[x + im_w * (y + im_h * z)] = 0.64;
-                                break;
-                            case 2:
-                                sparse_depth_vol[x + im_w * (y + im_h * z)] = 0.32;
-                                break;
-                        }
-                    }
-                 }
+
+              if (pos_y * im_w + pos_x 1 != voxel_idx){
+                  continue;
               }
+              float w_old = weight_vol[voxel_idx];
+              float sparse_depth_weight = other_params[8];
+              float w_new = w_old + sparse_depth_weight;
+              weight_vol[voxel_idx] = w_new;
+              sparse_depth_vol[voxel_idx] = (sparse_depth_vol[voxel_idx]*w_old+sparse_depth_weight*dist)/w_new;
             }
           }
           
@@ -290,7 +276,7 @@ class TSDFVolume:
             tsdf_vol_int[i] = (w_old[i] * tsdf_vol[i] + obs_weight * dist[i]) / w_new[i]
         return tsdf_vol_int, w_new
 
-    def integrate(self, color_im, depth_im, cam_intr, cam_pose, obs_weight=1.):
+    def integrate(self, color_im, depth_im, cam_intr, cam_pose, obs_weight=1.,sparse_depth_weight=1.):
         """Integrate an RGB-D frame into the TSDF volume.
 
         Args:
@@ -340,7 +326,8 @@ class TSDFVolume:
                                          self._trunc_margin,
                                          obs_weight,
                                          self.use_sparse_depth,
-                                         number_of_points
+                                         number_of_points,
+                                         sparse_depth_weight
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
