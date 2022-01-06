@@ -95,7 +95,8 @@ class TSDFVolume:
         # for computing the cumulative moving average of observations per voxel
         self._weight_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self._color_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
-        self._sparse_depth_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
+        self._sparse_depth_vol_cpu = np.ones(self._vol_dim).astype(np.float32)
+        self._sparse_weight_vol_cpu = np.zeros(self._vol_dim).astype(np.float32)
         self.gpu_mode = use_gpu and FUSION_GPU_MODE
 
         # Copy voxel volumes to GPU
@@ -108,6 +109,9 @@ class TSDFVolume:
             self.cuda.memcpy_htod(self._color_vol_gpu, self._color_vol_cpu)
             self._sparse_depth_vol_gpu = cuda.mem_alloc(self._sparse_depth_vol_cpu.nbytes)
             self.cuda.memcpy_htod(self._sparse_depth_vol_gpu, self._sparse_depth_vol_cpu)
+            self._sparse_weight_vol_gpu = cuda.mem_alloc(self._sparse_weight_vol_cpu.nbytes)
+            self.cuda.memcpy_htod(self._sparse_weight_vol_gpu, self._sparse_weight_vol_cpu)
+            
 
             # Cuda kernel function (C++)
             self._cuda_src_mod = SourceModule("""   
@@ -115,6 +119,7 @@ class TSDFVolume:
                                   float * weight_vol,
                                   float * color_vol,
                                   float * sparse_depth_vol,
+                                  float * sparse_weight_vol,
                                   float * vol_dim,
                                   float * vol_origin,
                                   float * cam_intr,
@@ -122,8 +127,8 @@ class TSDFVolume:
                                   float * other_params,
                                   float * color_im,
                                   float * depth_im,
-                                  int * randomPositionsX,
-                                  int * randomPositionsY) {
+                                  bool * sparse_x,
+                                  bool * sparse_y) {
           // Get voxel index
           int gpu_loop_idx = (int) other_params[0];
           int max_threads_per_block = blockDim.x;
@@ -190,14 +195,22 @@ class TSDFVolume:
           //color_vol[voxel_idx] = new_b*256*256+new_g*256+new_r;
 
           // Integrate Depth
-          if (other_params[6]){
+            if (other_params[6]){
+                if(sparse_x[pixel_x] && sparse_y[pixel_y]) {
+                    float sparse_w_old = sparse_weight_vol[voxel_idx];
+                    float sparse_w_new = sparse_w_old + obs_weight;
+                    sparse_weight_vol[voxel_idx] = sparse_w_new;
+                    sparse_depth_vol[voxel_idx] = (sparse_depth_vol[voxel_idx]*sparse_w_old+obs_weight*dist) / sparse_w_new;
+                }
+            }
+          /*if (other_params[6]){
             int numberOfPoints = (int) other_params[7];
             //printf(" i am here");
             for(int i = 0; i < numberOfPoints; i++){
               int pos_x = randomPositionsX[i];
               int pos_y = randomPositionsY[i];
               int flattend_pos = pos_y * im_w + pos_x;
-	      //printf("Flattend_pos: %d, voxel_idx: %d",flattend_pos,voxel_idx);
+	          //printf("Flattend_pos: %d, voxel_idx: %d",flattend_pos,voxel_idx);
               if (flattend_pos != voxel_idx){
                   continue;
               }
@@ -208,7 +221,7 @@ class TSDFVolume:
               weight_vol[voxel_idx] = w_new;
               sparse_depth_vol[voxel_idx] = (sparse_depth_vol[voxel_idx]*w_old+sparse_depth_weight*dist)/w_new;
             }
-          }
+          }*/
           
         }""")
 
@@ -302,13 +315,17 @@ class TSDFVolume:
         if self.gpu_mode:  # GPU mode: integrate voxel volume (calls CUDA kernel)
             size = im_h * im_w
             number_of_points = int(size * self.sampling_rate)
-            random_positions_x = np.zeros(number_of_points, dtype=int)
-            random_positions_y = np.zeros(number_of_points, dtype=int)
+            #random_positions_x = np.zeros(number_of_points, dtype=int)
+            #random_positions_y = np.zeros(number_of_points, dtype=int)
+            sparse_x = np.zeros(im_w, dtype=bool)
+            sparse_y = np.zeros(im_h, dtype=bool)
             for i in range(number_of_points):
-                pos_x = random.randint(0,im_h - 1) 
-                random_positions_x[i] = pos_x
-                pos_y = random.randint(0,im_w -1)
-                random_positions_y[i] = pos_y
+                pos_x = random.randint(0,im_w - 1) 
+                #random_positions_x[i] = pos_x
+                pos_y = random.randint(0,im_h -1)
+                #random_positions_y[i] = pos_y
+                sparse_x[pos_x] = True
+                sparse_y[pos_y] = True
             #print(random_positions_x)
             
             for gpu_loop_idx in range(self._n_gpu_loops):
@@ -316,6 +333,7 @@ class TSDFVolume:
                                      self._weight_vol_gpu,
                                      self._color_vol_gpu,
                                      self._sparse_depth_vol_gpu,
+                                     self._sparse_weight_vol_gpu,
                                      self.cuda.InOut(self._vol_dim.astype(np.float32)),
                                      self.cuda.InOut(self._vol_origin.astype(np.float32)),
                                      self.cuda.InOut(cam_intr.reshape(-1).astype(np.float32)),
@@ -333,8 +351,8 @@ class TSDFVolume:
                                      ], np.float32)),
                                      self.cuda.InOut(color_im),
                                      self.cuda.InOut(depth_im.reshape(-1).astype(np.float32)),
-                                     self.cuda.InOut(random_positions_x),
-                                     self.cuda.InOut(random_positions_y),
+                                     self.cuda.InOut(sparse_x),
+                                     self.cuda.InOut(sparse_y),
                                      block=(self._max_gpu_threads_per_block, 1, 1),
                                      grid=(
                                          int(self._max_gpu_grid_dim[0]),
