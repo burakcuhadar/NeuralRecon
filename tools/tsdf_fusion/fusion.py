@@ -192,14 +192,16 @@ class TSDFVolume:
           // Integrate Depth
           if (other_params[6]){
             int numberOfPoints = (int) other_params[7];
-            
+            //printf(" i am here");
             for(int i = 0; i < numberOfPoints; i++){
               int pos_x = randomPositionsX[i];
               int pos_y = randomPositionsY[i];
-
-              if (pos_y * im_w + pos_x 1 != voxel_idx){
+              int flattend_pos = pos_y * im_w + pos_x;
+	      //printf("Flattend_pos: %d, voxel_idx: %d",flattend_pos,voxel_idx);
+              if (flattend_pos != voxel_idx){
                   continue;
               }
+              printf("adding a sparse depth point to voxel_idx %d.",voxel_idx);
               float w_old = weight_vol[voxel_idx];
               float sparse_depth_weight = other_params[8];
               float w_new = w_old + sparse_depth_weight;
@@ -300,14 +302,14 @@ class TSDFVolume:
         if self.gpu_mode:  # GPU mode: integrate voxel volume (calls CUDA kernel)
             size = im_h * im_w
             number_of_points = int(size * self.sampling_rate)
-            random_positions_x = np.zeros(number_of_points)
-            random_positions_y = np.zeros(number_of_points)
+            random_positions_x = np.zeros(number_of_points, dtype=int)
+            random_positions_y = np.zeros(number_of_points, dtype=int)
             for i in range(number_of_points):
                 pos_x = random.randint(0,im_h - 1) 
                 random_positions_x[i] = pos_x
                 pos_y = random.randint(0,im_w -1)
                 random_positions_y[i] = pos_y
-               
+            #print(random_positions_x)
             
             for gpu_loop_idx in range(self._n_gpu_loops):
                 self._cuda_integrate(self._tsdf_vol_gpu,
