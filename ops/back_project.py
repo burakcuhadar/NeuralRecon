@@ -57,19 +57,20 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
                 depth = depth_im[view,batch] #(h,w)
 
                 # find the nearest depth value for every projected voxel
-                xx, yy = torch.meshgrid(torch.arange(h), torch.arange(w))
+                xx, yy = torch.meshgrid(torch.arange(h, device=torch.device('cuda')), torch.arange(w, device=torch.device('cuda')))
                 xx = xx.reshape(h*w)
                 yy = yy.reshape(h*w)        # (h*w)
 
                 depth_mask = depth.view(h*w) > 0
                 depth_coords = torch.stack([xx[depth_mask], yy[depth_mask]], dim=-1) # (num of valid depths, 2)
-                depth_coords = depth_coords.unsqueeze(0).expand(nV, -1, 2)           # (num voxels, num of valid depths, 2)
-                depth_coords = depth_coords.cuda()
+                #depth_coords = depth_coords.unsqueeze(0).expand(nV, -1, 2)           # (num voxels, num of valid depths, 2)
+                #depth_coords = depth_coords.cuda()
                 im_coords = torch.stack([im_x[view], im_y[view]], dim=-1)         # (num voxels,  2)
-                im_coords = im_coords.unsqueeze(1).expand(nV, depth_mask.sum(),2) # (num voxels, num of valid depths,2)
+                #im_coords = im_coords.unsqueeze(1).expand(nV, depth_mask.sum(),2) # (num voxels, num of valid depths,2)
 
-                dist = im_coords - depth_coords                                   #  num voxels, num depth, 2)
-                dist = dist.square().sum(dim=-1).sqrt()                           # (num voxels, num depth)
+                #dist = im_coords - depth_coords                                   #  num voxels, num depth, 2)
+                #dist = dist.square().sum(dim=-1).sqrt()                           # (num voxels, num depth)
+                dist = torch.cdist(im_coords, depth_coords)
                 nearest_idx = torch.argmin(dist, dim=-1)                          # (num voxels)
                 # For each voxel in each view "nearest_dist" stores the distance to the nearest pixel that has valid depth
                 nearest_dist = dist[torch.arange(nV),nearest_idx] # (num voxels)
@@ -82,7 +83,7 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
                 #nearest_depth = depth[nearest_x, nearest_y]           #  (num voxels)
                 nearest_depth = depth.view(h*w)[depth_mask].unsqueeze(0).expand(nV,-1)[torch.arange(nV), nearest_idx]
                 # create the additional feature dimension
-                sparse_depth_feature[view] = torch.where(torch.abs(im_z[view] - nearest_depth) < voxel_size * math.sqrt(2.) / 2., 1 - nearest_dist, torch.zeros(nV).cuda())
+                sparse_depth_feature[view] = torch.where(torch.abs(im_z[view] - nearest_depth) < voxel_size * math.sqrt(2.) / 2., 1 - nearest_dist, torch.zeros(nV, device=torch.device('cuda')))
 
 
         im_grid = torch.stack([2 * im_x / (w - 1) - 1, 2 * im_y / (h - 1) - 1], dim=-1)
