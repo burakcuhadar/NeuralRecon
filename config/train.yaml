@@ -1,5 +1,5 @@
 DATASET: 'scannet'
-BATCH_SIZE: 1
+BATCH_SIZE: 2
 SAVE_SCENE_MESH: False
 LOGDIR: './checkpoints'
 SAVE_FREQ: 1
@@ -10,13 +10,13 @@ TRAIN:
   EPOCHS: 991
   N_VIEWS: 9
   LR: 1e-3
-  N_WORKERS: 0
+  N_WORKERS: 4
   LREPOCHS: '12,24,48:2'
 
 TEST:
   PATH: '/mnt/raid/dareth/ScanNet/scannet'
   N_VIEWS: 9
-  N_WORKERS: 0
+  N_WORKERS: 2
 
 MODEL:
   N_LAYER: 3
