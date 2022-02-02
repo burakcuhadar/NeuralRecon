@@ -28,6 +28,10 @@ def args():
     parser.add_argument('--use_sparse_method1',
                         dest='use_sparse_method1',
                         action='store_true')
+    
+    parser.add_argument('--use_sparse_method2',
+                        dest='use_sparse_method2',
+                        action='store_true')
 
     parser.add_argument('--cfg',
                         help='experiment configure file name',
@@ -73,6 +77,7 @@ update_config(cfg, args)
 cfg.defrost()
 cfg.MODEL.USE_SPARSE = args.use_sparse
 cfg.MODEL.USE_SPARSE_METHOD1 = args.use_sparse_method1
+cfg.MODEL.USE_SPARSE_METHOD2 = args.use_sparse_method2
 
 num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 print('number of gpus: {}'.format(num_gpus))
