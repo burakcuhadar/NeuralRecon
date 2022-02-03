@@ -135,8 +135,7 @@ class NeuConNet(nn.Module):
                 views_depth = [F.interpolate(depth.unsqueeze(dim=1), size=(h, w), mode='nearest') for depth in torch.unbind(inputs['depth'], 1)]
                 volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
                                              KRcam, self.cfg.USE_SPARSE_METHOD1, torch.stack(views_depth))
-            
-	    if self.cfg.USE_SPARSE_METHOD2:
+	    elif self.cfg.USE_SPARSE_METHOD2:
 		volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
                                              KRcam)
 		volume = torch.cat(volume,imputs["sparse_depth"])
