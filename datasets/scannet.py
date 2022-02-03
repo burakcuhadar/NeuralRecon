@@ -66,6 +66,19 @@ class ScanNetDataset(Dataset):
             self.tsdf_cashe[scene] = full_tsdf_list
         return self.tsdf_cashe[scene]
 
+    def read_sparse_depth_volumes(self, data_path, scene):
+        if scene not in self.sparse_depth.keys():
+            if len(self.sparse_depth) > self.max_cashe:
+                self.sparse_depth = {}
+            sparse_depth_list = []
+            for l in range(self.n_scales + 1):
+                # load sparse depth volume
+                sparse_depth = np.load(os.path.join(data_path, scene, 'sparse_depth{}.npz'.format(l)),
+                                    allow_pickle=True)
+                sparse_depth_list.append(sparse_depth.f.sparse_depth)
+            self.sparse_depth[scene] = sparse_depth_list
+        return self.sparse_depth[scene]
+
     def __getitem__(self, idx):
         meta = self.metas[idx]
 
@@ -75,6 +88,7 @@ class ScanNetDataset(Dataset):
         intrinsics_list = []
 
         tsdf_list = self.read_scene_volumes(os.path.join(self.datapath, self.tsdf_file), meta['scene'])
+        sparse_depth_list = self.read_sparse_depth_volumes(os.path.join(self.datapath, self.tsdf_file), meta['scene'])
 
         for i, vid in enumerate(meta['image_ids']):
             # load images
@@ -107,6 +121,7 @@ class ScanNetDataset(Dataset):
             'scene': meta['scene'],
             'fragment': meta['scene'] + '_' + str(meta['fragment_id']),
             'epoch': [self.epoch],
+            'sparse_depth': sparse_depth_list,
         }
 
         if self.transforms is not None:
