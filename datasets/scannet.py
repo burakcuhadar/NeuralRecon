@@ -13,7 +13,7 @@ class ScanNetDataset(Dataset):
         self.mode = mode
         self.n_views = nviews
         self.transforms = transforms
-        self.tsdf_file = 'all_tsdf_{}'.format(self.n_views)
+        self.tsdf_file = 'sparse-depth-tsdf_0.01'
 
         assert self.mode in ["train", "val", "test"]
         self.metas = self.build_list()
@@ -25,6 +25,7 @@ class ScanNetDataset(Dataset):
         self.n_scales = n_scales
         self.epoch = None
         self.tsdf_cashe = {}
+        self.sparse_depth = {}
         self.max_cashe = 100
 
     def build_list(self):
