@@ -130,16 +130,16 @@ class NeuConNet(nn.Module):
             feats = torch.stack([feat[scale] for feat in features])
             KRcam = inputs['proj_matrices'][:, :, scale].permute(1, 0, 2, 3).contiguous()
             if self.cfg.USE_SPARSE_METHOD1:
-		# resize depth image using F.interpolate
+		        # resize depth image using F.interpolate
                 h, w = features[0][-1-i].shape[2], features[0][-1-i].shape[3]
                 views_depth = [F.interpolate(depth.unsqueeze(dim=1), size=(h, w), mode='nearest') for depth in torch.unbind(inputs['depth'], 1)]
                 volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
                                              KRcam, self.cfg.USE_SPARSE_METHOD1, torch.stack(views_depth))
-	    elif self.cfg.USE_SPARSE_METHOD2:
-		volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
-                                             KRcam)
-		volume = torch.cat(volume,imputs["sparse_depth"])
-	    else:
+            elif self.cfg.USE_SPARSE_METHOD2:
+                volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
+                                                    KRcam)
+                volume = torch.cat(volume,inputs["sparse_depth"])
+            else:
                 volume, count = back_project(up_coords, inputs['vol_origin_partial'], self.cfg.VOXEL_SIZE, feats,
                                              KRcam)
 
