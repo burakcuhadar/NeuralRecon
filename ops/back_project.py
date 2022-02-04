@@ -53,35 +53,52 @@ def back_project(coords, origin, voxel_size, feats, KRcam, use_sparse_method1=Fa
         # Find nearest depth value for each voxel
         if use_sparse_method1:
             sparse_depth_feature = torch.zeros(n_views,nV).cuda()
+            # To prevent cuda out of memory compute distances in chunks, see below
+            use_chunk = nV > 20000
+
             for view in range(n_views):
                 depth = depth_im[view,batch] #(h,w)
 
                 # find the nearest depth value for every projected voxel
                 xx, yy = torch.meshgrid(torch.arange(h, device=torch.device('cuda')), torch.arange(w, device=torch.device('cuda')))
-                xx = xx.reshape(h*w)
-                yy = yy.reshape(h*w)        # (h*w)
+                xx = xx.reshape(h*w).float()
+                yy = yy.reshape(h*w).float()       # (h*w)
 
                 depth_mask = depth.view(h*w) > 0
                 depth_coords = torch.stack([xx[depth_mask], yy[depth_mask]], dim=-1) # (num of valid depths, 2)
-                #depth_coords = depth_coords.unsqueeze(0).expand(nV, -1, 2)           # (num voxels, num of valid depths, 2)
-                #depth_coords = depth_coords.cuda()
                 im_coords = torch.stack([im_x[view], im_y[view]], dim=-1)         # (num voxels,  2)
-                #im_coords = im_coords.unsqueeze(1).expand(nV, depth_mask.sum(),2) # (num voxels, num of valid depths,2)
+                
+                if not use_chunk:
+                    dist = torch.cdist(im_coords, depth_coords)
+                    nearest_idx = torch.argmin(dist, dim=-1)                          # (num voxels)
+                    
+                    # For each voxel in each view "nearest_dist" stores the distance to the nearest pixel that has valid depth
+                    nearest_dist = dist[torch.arange(nV), nearest_idx] # (num voxels)
+                
+                else:
+                    nearest_dist = torch.zeros((nV), device=torch.device('cuda'))
+                
+                    nearest_idx = torch.zeros((nV), device=torch.device('cuda'), dtype=torch.long)
+                    
+                    chunk_size = 15000
+                    
+                    for i in range(math.ceil(nV/chunk_size)):
+                        start = i*chunk_size
+                        end = start+chunk_size if (start+chunk_size) < nV else nV
+                        
+                        dist = torch.cdist(im_coords[start : end], depth_coords)
+                        
+                        nearest_idx[start : end] = torch.argmin(dist, dim=-1)
 
-                #dist = im_coords - depth_coords                                   #  num voxels, num depth, 2)
-                #dist = dist.square().sum(dim=-1).sqrt()                           # (num voxels, num depth)
-                dist = torch.cdist(im_coords, depth_coords)
-                nearest_idx = torch.argmin(dist, dim=-1)                          # (num voxels)
-                # For each voxel in each view "nearest_dist" stores the distance to the nearest pixel that has valid depth
-                nearest_dist = dist[torch.arange(nV),nearest_idx] # (num voxels)
+                        nearest_dist[start : end] = dist[torch.arange(end-start), nearest_idx[start : end]] 
+
+                
                 # Normalize nearest_dist into [0,1]
                 nearest_dist = nearest_dist / (h**2 + w**2)**0.5
+                
                 # For each voxel in each view "nearest_depth" stores the depth of the nearest neighbor that has valid depth
-                #depth = depth.view(h,w).unsqueeze(0).expand(nV, -1, -1).view(nV, -1) # (num voxels, h*w)
-                #nearest_x = depth_coords[:,nearest_idx,0]
-                #nearest_y = depth_coords[:,nearest_idx,1]             #  (num voxels)
-                #nearest_depth = depth[nearest_x, nearest_y]           #  (num voxels)
                 nearest_depth = depth.view(h*w)[depth_mask].unsqueeze(0).expand(nV,-1)[torch.arange(nV), nearest_idx]
+                
                 # create the additional feature dimension
                 sparse_depth_feature[view] = torch.where(torch.abs(im_z[view] - nearest_depth) < voxel_size * math.sqrt(2.) / 2., 1 - nearest_dist, torch.zeros(nV, device=torch.device('cuda')))
 

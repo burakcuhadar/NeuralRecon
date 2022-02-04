@@ -66,10 +66,12 @@ def args():
 
     return args
 
+
 torch.backends.cudnn.benchmark = True
 torch.autograd.set_detect_anomaly(False)
 torch.autograd.profiler.profile(False)
 torch.autograd.profiler.emit_nvtx(False)
+
 
 args = args()
 update_config(cfg, args)
@@ -246,54 +248,54 @@ def train():
 
 def test(from_latest=True):
     ckpt_list = []
-    while True:
-        saved_models = [fn for fn in os.listdir(cfg.LOGDIR) if fn.endswith(".ckpt")]
-        saved_models = sorted(saved_models, key=lambda x: int(x.split('_')[-1].split('.')[0]))
+    
+    saved_models = [fn for fn in os.listdir(cfg.LOGDIR) if fn.endswith(".ckpt")]
+    saved_models = sorted(saved_models, key=lambda x: int(x.split('_')[-1].split('.')[0]))
 
-        if from_latest:
-            saved_models = saved_models[-1:]
-        for ckpt in saved_models:
-            if ckpt not in ckpt_list:
-                # use the latest checkpoint file
-                loadckpt = os.path.join(cfg.LOGDIR, ckpt)
-                logger.info("resuming " + str(loadckpt))
-                state_dict = torch.load(loadckpt)
-                model.load_state_dict(state_dict['model'])
-                epoch_idx = state_dict['epoch']
+    if from_latest:
+        saved_models = saved_models[-1:]
+    for ckpt in saved_models:
+        if ckpt not in ckpt_list:
+            # use the latest checkpoint file
+            loadckpt = os.path.join(cfg.LOGDIR, ckpt)
+            logger.info("resuming " + str(loadckpt))
+            state_dict = torch.load(loadckpt)
+            model.load_state_dict(state_dict['model'])
+            epoch_idx = state_dict['epoch']
 
-                TestImgLoader.dataset.tsdf_cashe = {}
+            TestImgLoader.dataset.tsdf_cashe = {}
 
-                avg_test_scalars = DictAverageMeter()
-                save_mesh_scene = SaveScene(cfg)
-                batch_len = len(TestImgLoader)
-                for batch_idx, sample in enumerate(TestImgLoader):
-                    for n in sample['fragment']:
-                        logger.info(n)
-                    # save mesh if SAVE_SCENE_MESH and is the last fragment
-                    save_scene = cfg.SAVE_SCENE_MESH and batch_idx == batch_len - 1
+            avg_test_scalars = DictAverageMeter()
+            save_mesh_scene = SaveScene(cfg)
+            batch_len = len(TestImgLoader)
+            for batch_idx, sample in enumerate(TestImgLoader):
+                for n in sample['fragment']:
+                    logger.info(n)
+                # save mesh if SAVE_SCENE_MESH and is the last fragment
+                save_scene = cfg.SAVE_SCENE_MESH and batch_idx == batch_len - 1
 
-                    start_time = time.time()
-                    loss, scalar_outputs, outputs = test_sample(sample, save_scene)
-                    logger.info('Epoch {}, Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(epoch_idx, batch_idx,
-                                                                                                len(TestImgLoader),
-                                                                                                loss,
-                                                                                                time.time() - start_time))
-                    avg_test_scalars.update(scalar_outputs)
-                    del scalar_outputs
+                start_time = time.time()
+                loss, scalar_outputs, outputs = test_sample(sample, save_scene)
+                logger.info('Epoch {}, Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(epoch_idx, batch_idx,
+                                                                                            len(TestImgLoader),
+                                                                                            loss,
+                                                                                            time.time() - start_time))
+                avg_test_scalars.update(scalar_outputs)
+                del scalar_outputs
 
-                    if batch_idx % 100 == 0:
-                        logger.info("Iter {}/{}, test results = {}".format(batch_idx, len(TestImgLoader),
-                                                                           avg_test_scalars.mean()))
+                if batch_idx % 100 == 0:
+                    logger.info("Iter {}/{}, test results = {}".format(batch_idx, len(TestImgLoader),
+                                                                        avg_test_scalars.mean()))
 
-                    # save mesh
-                    if cfg.SAVE_SCENE_MESH:
-                        save_mesh_scene(outputs, sample, epoch_idx)
-                save_scalars(tb_writer, 'fulltest', avg_test_scalars.mean(), epoch_idx)
-                logger.info("epoch {} avg_test_scalars:".format(epoch_idx), avg_test_scalars.mean())
+                # save mesh
+                if cfg.SAVE_SCENE_MESH:
+                    save_mesh_scene(outputs, sample, epoch_idx)
+            save_scalars(tb_writer, 'fulltest', avg_test_scalars.mean(), epoch_idx)
+            logger.info("epoch {} avg_test_scalars:".format(epoch_idx), avg_test_scalars.mean())
 
-                ckpt_list.append(ckpt)
+            ckpt_list.append(ckpt)
 
-        time.sleep(10)
+    
 
 
 def train_sample(sample):
